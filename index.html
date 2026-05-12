@@ -349,9 +349,9 @@ function updateCounts(data){
   document.getElementById('countDefensive').textContent='('+data.filter(r=>r.cat==='defensive').length+')';
 }
 
-// ── TECHNICAL INDICATOR CALCULATIONS ──
+// ── TECHNICAL CALCULATIONS from candle data ──
 function calcRSI(closes, period=14){
-  if(closes.length < period+1) return null;
+  if(closes.length<period+1) return null;
   let gains=0, losses=0;
   for(let i=closes.length-period; i<closes.length; i++){
     const diff=closes[i]-closes[i-1];
@@ -359,25 +359,20 @@ function calcRSI(closes, period=14){
   }
   const avgGain=gains/period, avgLoss=losses/period;
   if(avgLoss===0) return 100;
-  const rs=avgGain/avgLoss;
-  return 100-(100/(1+rs));
+  return 100-(100/(1+avgGain/avgLoss));
 }
-
 function calcBB(closes, period=20){
   if(closes.length<period) return null;
   const slice=closes.slice(-period);
   const mean=slice.reduce((a,b)=>a+b,0)/period;
-  const variance=slice.reduce((a,b)=>a+Math.pow(b-mean,2),0)/period;
-  const std=Math.sqrt(variance);
-  return { upper:mean+2*std, middle:mean, lower:mean-2*std };
+  const std=Math.sqrt(slice.reduce((a,b)=>a+Math.pow(b-mean,2),0)/period);
+  return{upper:mean+2*std, middle:mean, lower:mean-2*std};
 }
-
 function calcSMA(closes, period=200){
   if(closes.length<period) return null;
   const slice=closes.slice(-period);
   return slice.reduce((a,b)=>a+b,0)/period;
 }
-
 function getBBPos(price, bb){
   if(!bb) return null;
   const range=bb.upper-bb.lower;
@@ -424,28 +419,35 @@ function getPlay(score,ma200Above,caution){
   return{txt:'—',cls:'none'};
 }
 
-// ── FETCH ONE STOCK via Finnhub ──
+// ── FETCH using Finnhub quote + 2 years of weekly candles for indicators ──
 async function fetchStock(tk){
   try{
     const now=Math.floor(Date.now()/1000);
-    const from=now-(400*24*60*60); // 400 days of daily candles
-    const url=`https://finnhub.io/api/v1/stock/candle?symbol=${tk.s}&resolution=D&from=${from}&to=${now}&token=${apiKey}`;
-    const res=await fetch(url);
-    const d=await res.json();
+    // Use weekly candles going back 5 years to get enough data for 200-day MA
+    // Weekly resolution gives us ~260 weeks = 5 years, enough for indicators
+    const from=now-(365*5*24*60*60);
 
-    if(!d||d.s==='no_data'||!d.c||d.c.length<30){
-      return{...tk,price:0,chg:0,rsi:null,bbPos:null,ma200:null,pctFromMA:null};
+    const [quoteRes, candleRes] = await Promise.all([
+      fetch(`https://finnhub.io/api/v1/quote?symbol=${tk.s}&token=${apiKey}`),
+      fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${tk.s}&resolution=W&from=${from}&to=${now}&token=${apiKey}`)
+    ]);
+
+    const [quote, candle] = await Promise.all([quoteRes.json(), candleRes.json()]);
+
+    const price = parseFloat(quote.c) || 0;
+    const prevClose = parseFloat(quote.pc) || 0;
+    const chg = prevClose>0 ? ((price-prevClose)/prevClose*100) : 0;
+
+    if(!candle||candle.s==='no_data'||!candle.c||candle.c.length<20){
+      return{...tk,price,chg,rsi:null,bbPos:null,ma200:null,pctFromMA:null};
     }
 
-    const closes=d.c;
-    const price=closes[closes.length-1];
-    const prevClose=closes[closes.length-2]||price;
-    const chg=prevClose>0?((price-prevClose)/prevClose*100):0;
-
-    const rsi=calcRSI(closes);
-    const bb=calcBB(closes);
-    const bbPos=getBBPos(price,bb);
-    const ma200=calcSMA(closes,200);
+    const closes = candle.c;
+    // For weekly candles: 200-day MA ≈ 40-week MA, 20-day BB ≈ 4-week BB, RSI uses 14 weeks
+    const rsi    = calcRSI(closes, 14);
+    const bb     = calcBB(closes, 4);
+    const bbPos  = getBBPos(price, bb);
+    const ma200  = calcSMA(closes, 40); // 40 weeks ≈ 200 trading days
 
     return{...tk,price,chg,rsi,bbPos,ma200,pctFromMA:null};
   }catch(e){
@@ -465,7 +467,7 @@ async function fetchAll(){
     allResults.push(r);
     const sorted=[...allResults].sort((a,b)=>b.score-a.score);
     renderTable(sorted); renderCards(sorted); updateCounts(sorted);
-    if(i<STOCKS.length-1) await new Promise(r=>setTimeout(r,250));
+    if(i<STOCKS.length-1) await new Promise(r=>setTimeout(r,300));
   }
   document.getElementById('loadingMsg').textContent='';
   document.getElementById('apiStatus').textContent='✓ Connected · '+STOCKS.length+' stocks';
