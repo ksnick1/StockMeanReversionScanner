@@ -397,12 +397,13 @@ function getPlay(score,ma200Above,caution){
 
 async function fetchStock(tk){
   try{
-    const base='https://corsproxy.io/?url=https://api.twelvedata.com', key='&apikey='+apiKey;
+    const td='https://api.twelvedata.com', key='&apikey='+apiKey;
+    const proxy='https://corsproxy.io/?url=';
     const [qR,rR,bR,mR]=await Promise.all([
-      fetch(base+'/quote?symbol='+tk.s+key),
-      fetch(base+'/rsi?symbol='+tk.s+'&interval=1day&time_period=14&outputsize=1'+key),
-      fetch(base+'/bbands?symbol='+tk.s+'&interval=1day&time_period=20&outputsize=1'+key),
-      fetch(base+'/sma?symbol='+tk.s+'&interval=1day&time_period=200&outputsize=1'+key),
+      fetch(proxy+encodeURIComponent(td+'/quote?symbol='+tk.s+key)),
+      fetch(proxy+encodeURIComponent(td+'/rsi?symbol='+tk.s+'&interval=1day&time_period=14&outputsize=1'+key)),
+      fetch(proxy+encodeURIComponent(td+'/bbands?symbol='+tk.s+'&interval=1day&time_period=20&outputsize=1'+key)),
+      fetch(proxy+encodeURIComponent(td+'/sma?symbol='+tk.s+'&interval=1day&time_period=200&outputsize=1'+key)),
     ]);
     const [q,rsiD,bbD,maD]=await Promise.all([qR.json(),rR.json(),bR.json(),mR.json()]);
     const price=parseFloat(q.close)||parseFloat(q.price)||0;
