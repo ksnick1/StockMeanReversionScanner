@@ -475,6 +475,7 @@ async function fullLoad(){
   for(let i=0;i<STOCKS.length;i++){
     document.getElementById('loadingMsg').textContent=`Step 1/2: Indicators ${i+1}/${STOCKS.length}: ${STOCKS[i].s}…`;
     const ind=await fetchIndicators(STOCKS[i]);
+    await new Promise(r=>setTimeout(r,200));
     const {price,chg}=await fetchPrice(STOCKS[i].s);
     const r={...STOCKS[i],price,chg,...ind,pctFromMA:null};
     r.score=scoreStock(r);
@@ -499,18 +500,19 @@ async function fullLoad(){
   setTimeout(fullLoad, 6*60*60*1000);
 }
 
-// ── PRICE-ONLY REFRESH (every 30s) ──
+// ── PRICE-ONLY REFRESH (every 30s, staggered) ──
 async function refreshPrices(){
   if(!apiKey||allResults.length===0) return;
-  const updates=await Promise.all(allResults.map(r=>fetchPrice(r.s)));
-  updates.forEach((u,i)=>{
+  for(let i=0;i<allResults.length;i++){
+    const u=await fetchPrice(allResults[i].s);
     allResults[i].price=u.price;
     allResults[i].chg=u.chg;
     if(allResults[i].ma200!==null&&u.price>0)
       allResults[i].pctFromMA=((u.price-allResults[i].ma200)/allResults[i].ma200*100);
     allResults[i].score=scoreStock(allResults[i]);
     allResults[i].ma200Above=allResults[i].ma200!==null&&u.price>allResults[i].ma200;
-  });
+    if(i<allResults.length-1) await new Promise(r=>setTimeout(r,150));
+  }
   const sorted=[...allResults].sort((a,b)=>b.score-a.score);
   renderTable(sorted); renderCards(sorted); renderAlerts(sorted); updateCounts(sorted);
 }
