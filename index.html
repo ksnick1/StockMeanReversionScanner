@@ -8,17 +8,13 @@
 :root {
   --bg: #07080d; --surface: #0e1018; --surface2: #13151f;
   --border: #1c1f2e; --border2: #252838; --text: #dde1f0;
-  --muted: #4a4f6a; --muted2: #6b7199; --accent: #6c63f7;
+  --muted: #4a4f6a; --muted2: #6b7199;
   --red: #f06e6e; --amber: #f5c842; --green: #3dd68c;
   --blue: #5ba3f5; --purple: #a89fff;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 html, body { min-height:100vh; }
-body {
-  background:var(--bg); color:var(--text);
-  font-family:Tahoma,Geneva,sans-serif; font-size:15px; padding:16px;
-  background-image:radial-gradient(ellipse 60% 40% at 50% 0%, rgba(61,214,140,0.05) 0%, transparent 70%);
-}
+body { background:var(--bg); color:var(--text); font-family:Tahoma,Geneva,sans-serif; font-size:15px; padding:16px; background-image:radial-gradient(ellipse 60% 40% at 50% 0%, rgba(61,214,140,0.05) 0%, transparent 70%); }
 .header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding-bottom:14px; border-bottom:1px solid var(--border2); }
 .brand { display:flex; align-items:center; gap:10px; }
 .brand-icon { width:36px; height:36px; background:linear-gradient(135deg,#1a3a2a,#2d7a4f); border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; color:#3dd68c; box-shadow:0 0 18px rgba(61,214,140,0.3); }
@@ -51,7 +47,7 @@ body {
 .alert-list li { font-size:14px; color:var(--text); padding:3px 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .alert-list li::before { content:'▶'; font-size:9px; color:var(--green); }
 .play-tag { background:rgba(61,214,140,0.15); color:var(--green); border:1px solid rgba(61,214,140,0.3); border-radius:4px; padding:1px 8px; font-size:12px; font-weight:700; }
-.ma-tag { background:rgba(108,99,247,0.15); color:var(--purple); border:1px solid rgba(108,99,247,0.3); border-radius:4px; padding:1px 8px; font-size:12px; }
+.ma-tag { background:rgba(168,159,255,0.15); color:var(--purple); border:1px solid rgba(168,159,255,0.3); border-radius:4px; padding:1px 8px; font-size:12px; }
 .caution-tag { background:rgba(245,200,66,0.15); color:var(--amber); border:1px solid rgba(245,200,66,0.3); border-radius:4px; padding:1px 8px; font-size:11px; }
 .blueprint-panel { background:var(--surface); border:1px solid var(--border2); border-radius:10px; padding:12px 16px; margin-bottom:14px; }
 .bp-title { font-size:12px; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px; }
@@ -154,8 +150,8 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
 </div>
 
 <div class="api-bar">
-  <label>TWELVE DATA API KEY:</label>
-  <input type="text" id="apiKey" placeholder="Enter your Twelve Data API key…" />
+  <label>FINNHUB API KEY:</label>
+  <input type="text" id="apiKey" placeholder="Enter your Finnhub API key…" />
   <button class="btn-scan" onclick="startScanner()">▶ SCAN</button>
   <span class="api-status" id="apiStatus"></span>
   <span class="loading-msg" id="loadingMsg"></span>
@@ -175,7 +171,7 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
     <div class="bp-item"><div class="bp-label">200-Day MA</div><div class="bp-val purple">Above = Uptrend · Below = Caution</div></div>
     <div class="bp-item"><div class="bp-label">Strong Buy</div><div class="bp-val green">RSI &lt;30 + Lower BB + Above 200MA</div></div>
     <div class="bp-item"><div class="bp-label">Strong Sell</div><div class="bp-val red">RSI &gt;70 + Upper BB</div></div>
-    <div class="bp-item"><div class="bp-label">⚠️ Caution</div><div class="bp-val amber">Higher volatility · Smaller position size</div></div>
+    <div class="bp-item"><div class="bp-label">⚠️ Caution</div><div class="bp-val amber">Higher volatility · Smaller size</div></div>
     <div class="bp-item"><div class="bp-label">Universe</div><div class="bp-val">82 Stocks &amp; ETFs</div></div>
   </div>
 </div>
@@ -206,11 +202,10 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr class="loading-row"><td colspan="8">Enter your Twelve Data API key above and click SCAN</td></tr>
+      <tr class="loading-row"><td colspan="8">Enter your Finnhub API key above and click SCAN</td></tr>
     </tbody>
   </table>
 </div>
-
 <div class="cards" id="cards"></div>
 
 <div class="footer">
@@ -222,12 +217,11 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
     <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Strong Sell</div>
     <div class="leg-item">⚠️ = Higher Volatility</div>
   </div>
-  <div class="refresh-info" id="refreshInfo">Powered by Twelve Data · Auto-refresh: 5m</div>
+  <div class="refresh-info" id="refreshInfo">Powered by Finnhub · Auto-refresh: 5m</div>
 </div>
 
 <script>
 const STOCKS = [
-  // ── Broad Market ETFs
   {s:'SPY', name:'SPDR S&P 500 ETF',           cat:'etf',       caution:false},
   {s:'QQQ', name:'Invesco Nasdaq 100 ETF',      cat:'etf',       caution:false},
   {s:'IWM', name:'iShares Russell 2000 ETF',    cat:'etf',       caution:false},
@@ -239,7 +233,6 @@ const STOCKS = [
   {s:'XLV', name:'Health Care Select SPDR',     cat:'etf',       caution:false},
   {s:'GDX', name:'VanEck Gold Miners ETF',      cat:'etf',       caution:false},
   {s:'ARKK',name:'ARK Innovation ETF',          cat:'etf',       caution:true },
-  // ── Large Cap Tech
   {s:'AAPL',name:'Apple Inc.',                  cat:'tech',      caution:false},
   {s:'MSFT',name:'Microsoft Corp.',             cat:'tech',      caution:false},
   {s:'NVDA',name:'NVIDIA Corp.',                cat:'tech',      caution:false},
@@ -261,39 +254,32 @@ const STOCKS = [
   {s:'CRWD',name:'CrowdStrike Holdings',        cat:'tech',      caution:false},
   {s:'AKAM',name:'Akamai Technologies',         cat:'tech',      caution:false},
   {s:'TWLO',name:'Twilio Inc.',                 cat:'tech',      caution:false},
-  // ── Financials
   {s:'JPM', name:'JPMorgan Chase',              cat:'fin',       caution:false},
   {s:'BAC', name:'Bank of America',             cat:'fin',       caution:false},
   {s:'GS',  name:'Goldman Sachs',               cat:'fin',       caution:false},
   {s:'MS',  name:'Morgan Stanley',              cat:'fin',       caution:false},
   {s:'C',   name:'Citigroup Inc.',              cat:'fin',       caution:false},
-  // ── Healthcare
   {s:'JNJ', name:'Johnson & Johnson',           cat:'health',    caution:false},
   {s:'UNH', name:'UnitedHealth Group',          cat:'health',    caution:false},
   {s:'PFE', name:'Pfizer Inc.',                 cat:'health',    caution:false},
   {s:'ABBV',name:'AbbVie Inc.',                 cat:'health',    caution:false},
   {s:'LLY', name:'Eli Lilly & Co.',             cat:'health',    caution:false},
-  // ── Energy
   {s:'XOM', name:'Exxon Mobil Corp.',           cat:'energy',    caution:false},
   {s:'CVX', name:'Chevron Corp.',               cat:'energy',    caution:false},
   {s:'OXY', name:'Occidental Petroleum',        cat:'energy',    caution:false},
-  // ── Defensive / Consumer Staples
   {s:'KO',  name:'Coca-Cola Co.',               cat:'defensive', caution:false},
   {s:'WMT', name:'Walmart Inc.',                cat:'defensive', caution:false},
   {s:'PM',  name:'Philip Morris Intl.',         cat:'defensive', caution:false},
-  {s:'MCD', name:'McDonald\'s Corp.',           cat:'defensive', caution:false},
+  {s:'MCD', name:"McDonald's Corp.",            cat:'defensive', caution:false},
   {s:'KMB', name:'Kimberly-Clark Corp.',        cat:'defensive', caution:false},
   {s:'CLX', name:'Clorox Co.',                  cat:'defensive', caution:false},
   {s:'TJX', name:'TJX Companies Inc.',          cat:'defensive', caution:false},
-  // ── Industrials
   {s:'DE',  name:'Deere & Company',             cat:'industrial',caution:false},
   {s:'CSX', name:'CSX Corp.',                   cat:'industrial',caution:false},
   {s:'BE',  name:'Bloom Energy Corp.',          cat:'industrial',caution:false},
-  // ── Consumer Discretionary
   {s:'BBY', name:'Best Buy Co.',                cat:'cons',      caution:false},
   {s:'MNST',name:'Monster Beverage Corp.',      cat:'cons',      caution:false},
   {s:'UBER',name:'Uber Technologies',           cat:'cons',      caution:false},
-  // ── High Volume Options Plays
   {s:'APLD',name:'Applied Digital Corp.',       cat:'high',      caution:false},
   {s:'PLTR',name:'Palantir Technologies',       cat:'high',      caution:false},
   {s:'COIN',name:'Coinbase Global',             cat:'high',      caution:true },
@@ -302,7 +288,6 @@ const STOCKS = [
   {s:'SOUN',name:'SoundHound AI',               cat:'high',      caution:true },
   {s:'HOOD',name:'Robinhood Markets',           cat:'high',      caution:false},
   {s:'SMCI',name:'Super Micro Computer',        cat:'high',      caution:true },
-  // ── Caution Stocks
   {s:'NVTS',name:'Navitas Semiconductor',       cat:'caution',   caution:true },
   {s:'BW',  name:'Babcock & Wilcox',            cat:'caution',   caution:true },
   {s:'OKLO',name:'Oklo Inc.',                   cat:'caution',   caution:true },
@@ -318,6 +303,7 @@ const STOCKS = [
 
 let apiKey='', scanInterval=null, allResults=[], currentFilter='all';
 
+// ── CLOCK ──
 function getMarketStatus(){
   const et=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
   const d=et.getDay(), m=et.getHours()*60+et.getMinutes();
@@ -336,6 +322,7 @@ function updateClock(){
 }
 setInterval(updateClock,1000); updateClock();
 
+// ── FILTER ──
 function setFilter(f,btn){
   currentFilter=f;
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active','sell','caution'));
@@ -362,6 +349,48 @@ function updateCounts(data){
   document.getElementById('countDefensive').textContent='('+data.filter(r=>r.cat==='defensive').length+')';
 }
 
+// ── TECHNICAL INDICATOR CALCULATIONS ──
+function calcRSI(closes, period=14){
+  if(closes.length < period+1) return null;
+  let gains=0, losses=0;
+  for(let i=closes.length-period; i<closes.length; i++){
+    const diff=closes[i]-closes[i-1];
+    if(diff>0) gains+=diff; else losses+=Math.abs(diff);
+  }
+  const avgGain=gains/period, avgLoss=losses/period;
+  if(avgLoss===0) return 100;
+  const rs=avgGain/avgLoss;
+  return 100-(100/(1+rs));
+}
+
+function calcBB(closes, period=20){
+  if(closes.length<period) return null;
+  const slice=closes.slice(-period);
+  const mean=slice.reduce((a,b)=>a+b,0)/period;
+  const variance=slice.reduce((a,b)=>a+Math.pow(b-mean,2),0)/period;
+  const std=Math.sqrt(variance);
+  return { upper:mean+2*std, middle:mean, lower:mean-2*std };
+}
+
+function calcSMA(closes, period=200){
+  if(closes.length<period) return null;
+  const slice=closes.slice(-period);
+  return slice.reduce((a,b)=>a+b,0)/period;
+}
+
+function getBBPos(price, bb){
+  if(!bb) return null;
+  const range=bb.upper-bb.lower;
+  if(range===0) return 'mid';
+  const pos=(price-bb.lower)/range;
+  if(pos<=0.10) return 'lower';
+  if(pos<=0.30) return 'near-lower';
+  if(pos>=0.90) return 'upper';
+  if(pos>=0.70) return 'near-upper';
+  return 'mid';
+}
+
+// ── SCORING ──
 function scoreStock(r){
   let score=0;
   if(r.rsi!==null){
@@ -395,36 +424,36 @@ function getPlay(score,ma200Above,caution){
   return{txt:'—',cls:'none'};
 }
 
+// ── FETCH ONE STOCK via Finnhub ──
 async function fetchStock(tk){
   try{
-    const td='https://api.twelvedata.com', key='&apikey='+apiKey;
-    const proxy='https://corsproxy.io/?url=';
-    const [qR,rR,bR,mR]=await Promise.all([
-      fetch(proxy+encodeURIComponent(td+'/quote?symbol='+tk.s+key)),
-      fetch(proxy+encodeURIComponent(td+'/rsi?symbol='+tk.s+'&interval=1day&time_period=14&outputsize=1'+key)),
-      fetch(proxy+encodeURIComponent(td+'/bbands?symbol='+tk.s+'&interval=1day&time_period=20&outputsize=1'+key)),
-      fetch(proxy+encodeURIComponent(td+'/sma?symbol='+tk.s+'&interval=1day&time_period=200&outputsize=1'+key)),
-    ]);
-    const [q,rsiD,bbD,maD]=await Promise.all([qR.json(),rR.json(),bR.json(),mR.json()]);
-    const price=parseFloat(q.close)||parseFloat(q.price)||0;
-    const prev=parseFloat(q.previous_close)||0;
-    const chg=prev>0?((price-prev)/prev*100):0;
-    let rsi=null;
-    if(rsiD.values?.[0]) rsi=parseFloat(rsiD.values[0].rsi);
-    let bbPos=null;
-    if(bbD.values?.[0]&&price>0){
-      const u=parseFloat(bbD.values[0].upper_band), l=parseFloat(bbD.values[0].lower_band);
-      const pos=(price-l)/(u-l);
-      if(pos<=0.10) bbPos='lower'; else if(pos<=0.30) bbPos='near-lower';
-      else if(pos>=0.90) bbPos='upper'; else if(pos>=0.70) bbPos='near-upper';
-      else bbPos='mid';
+    const now=Math.floor(Date.now()/1000);
+    const from=now-(400*24*60*60); // 400 days of daily candles
+    const url=`https://finnhub.io/api/v1/stock/candle?symbol=${tk.s}&resolution=D&from=${from}&to=${now}&token=${apiKey}`;
+    const res=await fetch(url);
+    const d=await res.json();
+
+    if(!d||d.s==='no_data'||!d.c||d.c.length<30){
+      return{...tk,price:0,chg:0,rsi:null,bbPos:null,ma200:null,pctFromMA:null};
     }
-    let ma200=null;
-    if(maD.values?.[0]) ma200=parseFloat(maD.values[0].sma);
+
+    const closes=d.c;
+    const price=closes[closes.length-1];
+    const prevClose=closes[closes.length-2]||price;
+    const chg=prevClose>0?((price-prevClose)/prevClose*100):0;
+
+    const rsi=calcRSI(closes);
+    const bb=calcBB(closes);
+    const bbPos=getBBPos(price,bb);
+    const ma200=calcSMA(closes,200);
+
     return{...tk,price,chg,rsi,bbPos,ma200,pctFromMA:null};
-  }catch{return{...tk,price:0,chg:0,rsi:null,bbPos:null,ma200:null,pctFromMA:null};}
+  }catch(e){
+    return{...tk,price:0,chg:0,rsi:null,bbPos:null,ma200:null,pctFromMA:null};
+  }
 }
 
+// ── FETCH ALL ──
 async function fetchAll(){
   if(!apiKey) return;
   allResults=[];
@@ -436,7 +465,7 @@ async function fetchAll(){
     allResults.push(r);
     const sorted=[...allResults].sort((a,b)=>b.score-a.score);
     renderTable(sorted); renderCards(sorted); updateCounts(sorted);
-    if(i<STOCKS.length-1) await new Promise(r=>setTimeout(r,500));
+    if(i<STOCKS.length-1) await new Promise(r=>setTimeout(r,250));
   }
   document.getElementById('loadingMsg').textContent='';
   document.getElementById('apiStatus').textContent='✓ Connected · '+STOCKS.length+' stocks';
@@ -445,6 +474,7 @@ async function fetchAll(){
   renderTable(sorted); renderCards(sorted); renderAlerts(sorted); updateCounts(sorted);
 }
 
+// ── RENDER TABLE ──
 function renderTable(data){
   const visible=filterData(data);
   const tbody=document.getElementById('tableBody');
@@ -466,7 +496,7 @@ function renderTable(data){
       ?`<span class="ma-cell ${r.price>r.ma200?'above':'below'}">${r.price>r.ma200?'▲':'▼'} ${(r.pctFromMA>=0?'+':'')+r.pctFromMA.toFixed(1)}% · $${r.ma200.toFixed(2)}</span>`
       :'<span style="color:var(--muted)">—</span>';
     const sb=r.score>=4?'<span class="sig-badge buy">BUY</span>':r.score<=-4?'<span class="sig-badge sell">SELL</span>':'';
-    const ci=r.caution?'<span title="Higher volatility — use smaller position size"> ⚠️</span>':'';
+    const ci=r.caution?'<span title="Higher volatility"> ⚠️</span>':'';
     html+=`<tr class="${rowCls}${r.caution?' caution-row':''}">
       <td><div class="sym">${r.s}${ci}${sb}</div><div class="sym-name">${r.name}</div></td>
       <td class="price-cell">${pf}</td><td class="chg-cell ${cc}">${cf}</td>
@@ -478,6 +508,7 @@ function renderTable(data){
   tbody.innerHTML=html;
 }
 
+// ── RENDER CARDS ──
 function renderCards(data){
   const visible=filterData(data);
   const cont=document.getElementById('cards');
@@ -506,6 +537,7 @@ function renderCards(data){
   cont.innerHTML=html;
 }
 
+// ── RENDER ALERTS ──
 function renderAlerts(data){
   const buys=data.filter(r=>r.score>=4), sells=data.filter(r=>r.score<=-4);
   const ab=document.getElementById('signalAlert');
@@ -526,10 +558,11 @@ function renderAlerts(data){
   document.getElementById('alertList').innerHTML=html;
 }
 
+// ── START ──
 function startScanner(){
   const key=document.getElementById('apiKey').value.trim();
   if(!key){document.getElementById('apiStatus').textContent='⚠ Enter API key';document.getElementById('apiStatus').className='api-status err';return;}
-  apiKey=key; localStorage.setItem('twelvedata_key',key);
+  apiKey=key; localStorage.setItem('finnhub_key_mr',key);
   document.getElementById('apiStatus').textContent='';
   if(scanInterval) clearInterval(scanInterval);
   fetchAll();
@@ -537,7 +570,7 @@ function startScanner(){
 }
 
 window.addEventListener('load',()=>{
-  const saved=localStorage.getItem('twelvedata_key')||'827de4ab48ab448c9e49c9b9999f0baf';
+  const saved=localStorage.getItem('finnhub_key_mr')||'d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
   document.getElementById('apiKey').value=saved;
   startScanner();
 });
