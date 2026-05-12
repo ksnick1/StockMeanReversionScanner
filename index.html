@@ -36,6 +36,10 @@ body { background:var(--bg); color:var(--text); font-family:Tahoma,Geneva,sans-s
 .api-status.ok { color:var(--green); }
 .api-status.err { color:var(--red); }
 .loading-msg { font-size:12px; color:var(--amber); }
+.data-badge { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.badge-pill { font-size:11px; padding:4px 10px; border-radius:20px; font-weight:600; }
+.badge-pill.live { background:rgba(61,214,140,0.15); color:var(--green); border:1px solid rgba(61,214,140,0.3); }
+.badge-pill.daily { background:rgba(91,163,245,0.15); color:var(--blue); border:1px solid rgba(91,163,245,0.3); }
 .signal-alert { display:none; border-radius:10px; padding:12px 16px; margin-bottom:14px; }
 .signal-alert.show { display:block; }
 .signal-alert.buy { background:rgba(61,214,140,0.08); border:1px solid rgba(61,214,140,0.3); }
@@ -83,6 +87,7 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
 .sym { font-weight:700; font-size:15px; color:var(--text); }
 .sym-name { font-size:11px; color:var(--muted2); margin-top:1px; }
 .price-cell { font-weight:700; font-size:15px; }
+.live-dot { display:inline-block; width:6px; height:6px; background:var(--green); border-radius:50%; margin-left:4px; animation:pulse 1.5s ease-in-out infinite; }
 .chg-cell { font-size:14px; font-weight:600; }
 .chg-cell.neg { color:var(--red); } .chg-cell.pos { color:var(--green); } .chg-cell.flat { color:var(--muted2); }
 .rsi-wrap { display:flex; align-items:center; gap:6px; }
@@ -106,7 +111,7 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
 .sig-badge { display:inline-block; font-size:9px; font-weight:700; padding:2px 5px; border-radius:3px; margin-left:5px; animation:pulse 2s ease-in-out infinite; }
 .sig-badge.buy { background:rgba(61,214,140,0.2); color:var(--green); border:1px solid rgba(61,214,140,0.35); }
 .sig-badge.sell { background:rgba(240,110,110,0.2); color:var(--red); border:1px solid rgba(240,110,110,0.35); }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 .loading-row td { color:var(--muted); text-align:center; padding:24px; font-size:13px; }
 .footer { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin-top:4px; }
 .legend { display:flex; gap:10px; flex-wrap:wrap; }
@@ -149,12 +154,19 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
   </div>
 </div>
 
+<!-- API KEY BAR -->
 <div class="api-bar">
   <label>FINNHUB API KEY:</label>
   <input type="text" id="apiKey" placeholder="Enter your Finnhub API key…" />
   <button class="btn-scan" onclick="startScanner()">▶ SCAN</button>
   <span class="api-status" id="apiStatus"></span>
   <span class="loading-msg" id="loadingMsg"></span>
+</div>
+
+<!-- DATA SOURCE BADGES -->
+<div class="data-badge">
+  <span class="badge-pill live">🟢 Price &amp; Chg% — Finnhub Real-Time</span>
+  <span class="badge-pill daily">🔵 RSI · BB · 200MA — Yahoo Finance Daily (updates at market close)</span>
 </div>
 
 <div class="signal-alert" id="signalAlert">
@@ -171,8 +183,8 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
     <div class="bp-item"><div class="bp-label">200-Day MA</div><div class="bp-val purple">Above = Uptrend · Below = Caution</div></div>
     <div class="bp-item"><div class="bp-label">Strong Buy</div><div class="bp-val green">RSI &lt;30 + Lower BB + Above 200MA</div></div>
     <div class="bp-item"><div class="bp-label">Strong Sell</div><div class="bp-val red">RSI &gt;70 + Upper BB</div></div>
-    <div class="bp-item"><div class="bp-label">⚠️ Caution</div><div class="bp-val amber">Higher volatility · Smaller size</div></div>
-    <div class="bp-item"><div class="bp-label">Universe</div><div class="bp-val">82 Stocks &amp; ETFs</div></div>
+    <div class="bp-item"><div class="bp-label">Price Source</div><div class="bp-val green">Finnhub · Real-Time</div></div>
+    <div class="bp-item"><div class="bp-label">Indicators</div><div class="bp-val blue" style="color:var(--blue)">Yahoo Finance · Daily</div></div>
   </div>
 </div>
 
@@ -196,9 +208,14 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
   <table>
     <thead>
       <tr>
-        <th>Symbol</th><th>Price</th><th>Chg %</th>
-        <th>RSI (14)</th><th>Bollinger Band</th>
-        <th>vs 200-Day MA</th><th>Score</th><th>Play</th>
+        <th>Symbol</th>
+        <th>Price 🟢 Live</th>
+        <th>Chg % 🟢 Live</th>
+        <th>RSI (14)</th>
+        <th>Bollinger Band</th>
+        <th>vs 200-Day MA</th>
+        <th>Score</th>
+        <th>Play</th>
       </tr>
     </thead>
     <tbody id="tableBody">
@@ -217,7 +234,7 @@ td { padding:10px 12px; vertical-align:middle; white-space:nowrap; }
     <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Strong Sell</div>
     <div class="leg-item">⚠️ = Higher Volatility</div>
   </div>
-  <div class="refresh-info" id="refreshInfo">Powered by Finnhub · Auto-refresh: 5m</div>
+  <div class="refresh-info" id="refreshInfo">Price: Finnhub real-time (30s) · Indicators: Yahoo Finance daily</div>
 </div>
 
 <script>
@@ -301,7 +318,8 @@ const STOCKS = [
   {s:'LYFT',name:'Lyft Inc.',                   cat:'caution',   caution:true },
 ];
 
-let apiKey='', scanInterval=null, allResults=[], currentFilter='all';
+let apiKey='', priceInterval=null, allResults=[], currentFilter='all';
+const PROXY = 'https://corsproxy.io/?url=';
 
 // ── CLOCK ──
 function getMarketStatus(){
@@ -349,31 +367,30 @@ function updateCounts(data){
   document.getElementById('countDefensive').textContent='('+data.filter(r=>r.cat==='defensive').length+')';
 }
 
-// ── TECHNICAL CALCULATIONS from candle data ──
-function calcRSI(closes, period=14){
+// ── TECHNICAL CALCULATIONS ──
+function calcRSI(closes,period=14){
   if(closes.length<period+1) return null;
-  let gains=0, losses=0;
-  for(let i=closes.length-period; i<closes.length; i++){
-    const diff=closes[i]-closes[i-1];
-    if(diff>0) gains+=diff; else losses+=Math.abs(diff);
+  let gains=0,losses=0;
+  for(let i=closes.length-period;i<closes.length;i++){
+    const d=closes[i]-closes[i-1];
+    if(d>0) gains+=d; else losses+=Math.abs(d);
   }
-  const avgGain=gains/period, avgLoss=losses/period;
-  if(avgLoss===0) return 100;
-  return 100-(100/(1+avgGain/avgLoss));
+  const ag=gains/period,al=losses/period;
+  if(al===0) return 100;
+  return 100-(100/(1+ag/al));
 }
-function calcBB(closes, period=20){
+function calcBB(closes,period=20){
   if(closes.length<period) return null;
-  const slice=closes.slice(-period);
-  const mean=slice.reduce((a,b)=>a+b,0)/period;
-  const std=Math.sqrt(slice.reduce((a,b)=>a+Math.pow(b-mean,2),0)/period);
-  return{upper:mean+2*std, middle:mean, lower:mean-2*std};
+  const sl=closes.slice(-period);
+  const mean=sl.reduce((a,b)=>a+b,0)/period;
+  const std=Math.sqrt(sl.reduce((a,b)=>a+Math.pow(b-mean,2),0)/period);
+  return{upper:mean+2*std,middle:mean,lower:mean-2*std};
 }
-function calcSMA(closes, period=200){
-  if(closes.length<period) return null;
-  const slice=closes.slice(-period);
-  return slice.reduce((a,b)=>a+b,0)/period;
+function calcSMA(closes,period=200){
+  const sl=closes.slice(-period);
+  return sl.reduce((a,b)=>a+b,0)/sl.length;
 }
-function getBBPos(price, bb){
+function getBBPos(price,bb){
   if(!bb) return null;
   const range=bb.upper-bb.lower;
   if(range===0) return 'mid';
@@ -403,77 +420,97 @@ function scoreStock(r){
   return score;
 }
 function getScoreLabel(score){
-  if(score>=4)  return{label:'⚡ STRONG BUY', cls:'strong-buy',  rowCls:'strong-buy'};
-  if(score>=2)  return{label:'↑ BUY',          cls:'buy',         rowCls:'buy-row'};
-  if(score<=-4) return{label:'⚡ STRONG SELL',  cls:'strong-sell', rowCls:'strong-sell'};
-  if(score<=-2) return{label:'↓ SELL',          cls:'sell',        rowCls:''};
+  if(score>=4)  return{label:'⚡ STRONG BUY',cls:'strong-buy', rowCls:'strong-buy'};
+  if(score>=2)  return{label:'↑ BUY',         cls:'buy',        rowCls:'buy-row'};
+  if(score<=-4) return{label:'⚡ STRONG SELL', cls:'strong-sell',rowCls:'strong-sell'};
+  if(score<=-2) return{label:'↓ SELL',         cls:'sell',       rowCls:''};
   return{label:'— NEUTRAL',cls:'neutral',rowCls:''};
 }
 function getPlay(score,ma200Above,caution){
   const c=caution?' ⚠️':'';
   if(score>=4)  return{txt:ma200Above?'🎯 Buy Calls'+c:'⚠️ Buy Calls (Below 200MA)',cls:'buy-calls'};
-  if(score>=2)  return{txt:'Buy Calls'+c,    cls:'buy-calls'};
-  if(score<=-4) return{txt:'Buy Puts'+c,     cls:'buy-puts'};
+  if(score>=2)  return{txt:'Buy Calls'+c,cls:'buy-calls'};
+  if(score<=-4) return{txt:'Buy Puts'+c,cls:'buy-puts'};
   if(score<=-2) return{txt:'Consider Puts'+c,cls:'buy-puts'};
   if(score>0)   return{txt:'Watch',cls:'watch'};
   return{txt:'—',cls:'none'};
 }
 
-// ── FETCH using Finnhub quote + 2 years of weekly candles for indicators ──
-async function fetchStock(tk){
+// ── PHASE 1: Fetch indicators from Yahoo Finance (once per session) ──
+async function fetchIndicators(tk){
   try{
-    const now=Math.floor(Date.now()/1000);
-    // Use weekly candles going back 5 years to get enough data for 200-day MA
-    // Weekly resolution gives us ~260 weeks = 5 years, enough for indicators
-    // Use 1 year of daily candles - well within Finnhub free plan
-    const from=now-(370*24*60*60);
-
-    const [quoteRes, candleRes] = await Promise.all([
-      fetch(`https://finnhub.io/api/v1/quote?symbol=${tk.s}&token=${apiKey}`),
-      fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${tk.s}&resolution=D&from=${from}&to=${now}&token=${apiKey}`)
-    ]);
-
-    const [quote, candle] = await Promise.all([quoteRes.json(), candleRes.json()]);
-
-    const price = parseFloat(quote.c) || 0;
-    const prevClose = parseFloat(quote.pc) || 0;
-    const chg = prevClose>0 ? ((price-prevClose)/prevClose*100) : 0;
-
-    if(!candle||candle.s==='no_data'||!candle.c||candle.c.length<20){
-      return{...tk,price,chg,rsi:null,bbPos:null,ma200:null,pctFromMA:null};
-    }
-
-    const closes = candle.c;
-    // Daily candles: RSI(14), BB(20), SMA(200) - use all available data
-    const rsi    = calcRSI(closes, 14);
-    const bb     = calcBB(closes, 20);
-    const bbPos  = getBBPos(price, bb);
-    // Use all available closes for 200MA - if less than 200 days use what we have
-    const ma200  = closes.length >= 200 ? calcSMA(closes, 200) : calcSMA(closes, closes.length);
-
-    return{...tk,price,chg,rsi,bbPos,ma200,pctFromMA:null};
-  }catch(e){
-    return{...tk,price:0,chg:0,rsi:null,bbPos:null,ma200:null,pctFromMA:null};
-  }
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${tk.s}?interval=1d&range=1y`;
+    const res=await fetch(PROXY+encodeURIComponent(url));
+    const json=await res.json();
+    const result=json?.chart?.result?.[0];
+    if(!result) return{rsi:null,bbPos:null,ma200:null};
+    const closes=(result.indicators?.quote?.[0]?.close||[]).filter(v=>v!=null);
+    if(closes.length<20) return{rsi:null,bbPos:null,ma200:null};
+    const lastClose=closes[closes.length-1];
+    const rsi=calcRSI(closes,14);
+    const bb=calcBB(closes,20);
+    const bbPos=getBBPos(lastClose,bb);
+    const ma200=calcSMA(closes,200);
+    return{rsi,bbPos,ma200};
+  }catch{return{rsi:null,bbPos:null,ma200:null};}
 }
 
-// ── FETCH ALL ──
-async function fetchAll(){
-  if(!apiKey) return;
+// ── PHASE 2: Fetch real-time price from Finnhub ──
+async function fetchPrice(sym){
+  try{
+    const res=await fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${apiKey}`);
+    const d=await res.json();
+    const price=parseFloat(d.c)||0;
+    const prev=parseFloat(d.pc)||0;
+    const chg=prev>0?((price-prev)/prev*100):0;
+    return{price,chg};
+  }catch{return{price:0,chg:0};}
+}
+
+// ── INITIAL FULL LOAD ──
+async function fullLoad(){
   allResults=[];
+  document.getElementById('loadingMsg').textContent='Step 1/2: Loading indicators…';
+
   for(let i=0;i<STOCKS.length;i++){
-    document.getElementById('loadingMsg').textContent='Loading '+(i+1)+'/'+STOCKS.length+': '+STOCKS[i].s+'…';
-    const r=await fetchStock(STOCKS[i]);
+    document.getElementById('loadingMsg').textContent=`Step 1/2: Indicators ${i+1}/${STOCKS.length}: ${STOCKS[i].s}…`;
+    const ind=await fetchIndicators(STOCKS[i]);
+    const {price,chg}=await fetchPrice(STOCKS[i].s);
+    const r={...STOCKS[i],price,chg,...ind,pctFromMA:null};
     r.score=scoreStock(r);
     r.ma200Above=r.ma200!==null&&r.price>r.ma200;
     allResults.push(r);
     const sorted=[...allResults].sort((a,b)=>b.score-a.score);
     renderTable(sorted); renderCards(sorted); updateCounts(sorted);
-    if(i<STOCKS.length-1) await new Promise(r=>setTimeout(r,300));
+    if(i<STOCKS.length-1) await new Promise(r=>setTimeout(r,400));
   }
+
   document.getElementById('loadingMsg').textContent='';
-  document.getElementById('apiStatus').textContent='✓ Connected · '+STOCKS.length+' stocks';
+  document.getElementById('apiStatus').textContent='✓ Live · '+STOCKS.length+' stocks';
   document.getElementById('apiStatus').className='api-status ok';
+  const sorted=[...allResults].sort((a,b)=>b.score-a.score);
+  renderTable(sorted); renderCards(sorted); renderAlerts(sorted); updateCounts(sorted);
+
+  // Start real-time price refresh every 30s
+  if(priceInterval) clearInterval(priceInterval);
+  priceInterval=setInterval(refreshPrices,30000);
+
+  // Refresh indicators once per day (every 6 hours)
+  setTimeout(fullLoad, 6*60*60*1000);
+}
+
+// ── PRICE-ONLY REFRESH (every 30s) ──
+async function refreshPrices(){
+  if(!apiKey||allResults.length===0) return;
+  const updates=await Promise.all(allResults.map(r=>fetchPrice(r.s)));
+  updates.forEach((u,i)=>{
+    allResults[i].price=u.price;
+    allResults[i].chg=u.chg;
+    if(allResults[i].ma200!==null&&u.price>0)
+      allResults[i].pctFromMA=((u.price-allResults[i].ma200)/allResults[i].ma200*100);
+    allResults[i].score=scoreStock(allResults[i]);
+    allResults[i].ma200Above=allResults[i].ma200!==null&&u.price>allResults[i].ma200;
+  });
   const sorted=[...allResults].sort((a,b)=>b.score-a.score);
   renderTable(sorted); renderCards(sorted); renderAlerts(sorted); updateCounts(sorted);
 }
@@ -492,6 +529,7 @@ function renderTable(data){
     const pf=r.price>0?'$'+r.price.toFixed(2):'—';
     const cf=r.price>0?(r.chg>=0?'+':'')+r.chg.toFixed(2)+'%':'—';
     const cc=r.chg<0?'neg':r.chg>0?'pos':'flat';
+    const liveDot=r.price>0?'<span class="live-dot"></span>':'';
     const rsiH=r.rsi!==null
       ?`<div class="rsi-wrap"><span class="rsi-val ${r.rsi<30?'oversold':r.rsi>70?'overbought':'neutral'}">${r.rsi.toFixed(1)}</span><div class="rsi-bar-track"><div class="rsi-bar-fill" style="width:${Math.min(100,r.rsi)}%;background:${r.rsi<30?'#3dd68c':r.rsi>70?'#f06e6e':'#5ba3f5'}"></div></div></div>`
       :'<span style="color:var(--muted)">—</span>';
@@ -503,7 +541,8 @@ function renderTable(data){
     const ci=r.caution?'<span title="Higher volatility"> ⚠️</span>':'';
     html+=`<tr class="${rowCls}${r.caution?' caution-row':''}">
       <td><div class="sym">${r.s}${ci}${sb}</div><div class="sym-name">${r.name}</div></td>
-      <td class="price-cell">${pf}</td><td class="chg-cell ${cc}">${cf}</td>
+      <td class="price-cell">${pf}${liveDot}</td>
+      <td class="chg-cell ${cc}">${cf}</td>
       <td>${rsiH}</td><td>${bbH}</td><td>${maH}</td>
       <td><span class="score-badge ${cls}">${label}</span></td>
       <td><span class="play-cell ${pc}">${pt}</span></td>
@@ -543,7 +582,7 @@ function renderCards(data){
 
 // ── RENDER ALERTS ──
 function renderAlerts(data){
-  const buys=data.filter(r=>r.score>=4), sells=data.filter(r=>r.score<=-4);
+  const buys=data.filter(r=>r.score>=4),sells=data.filter(r=>r.score<=-4);
   const ab=document.getElementById('signalAlert');
   if(!buys.length&&!sells.length){ab.classList.remove('show');return;}
   ab.classList.add('show');
@@ -566,11 +605,10 @@ function renderAlerts(data){
 function startScanner(){
   const key=document.getElementById('apiKey').value.trim();
   if(!key){document.getElementById('apiStatus').textContent='⚠ Enter API key';document.getElementById('apiStatus').className='api-status err';return;}
-  apiKey=key; localStorage.setItem('finnhub_key_mr',key);
-  document.getElementById('apiStatus').textContent='';
-  if(scanInterval) clearInterval(scanInterval);
-  fetchAll();
-  scanInterval=setInterval(fetchAll,300000);
+  apiKey=key;
+  localStorage.setItem('finnhub_key_mr',key);
+  document.getElementById('apiStatus').textContent='⏳ Loading…';
+  fullLoad();
 }
 
 window.addEventListener('load',()=>{
