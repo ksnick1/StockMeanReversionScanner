@@ -397,7 +397,7 @@ function getPlay(score,ma200Above,caution){
 
 async function fetchStock(tk){
   try{
-    const base='https://api.twelvedata.com', key='&apikey='+apiKey;
+    const base='https://corsproxy.io/?url=https://api.twelvedata.com', key='&apikey='+apiKey;
     const [qR,rR,bR,mR]=await Promise.all([
       fetch(base+'/quote?symbol='+tk.s+key),
       fetch(base+'/rsi?symbol='+tk.s+'&interval=1day&time_period=14&outputsize=1'+key),
