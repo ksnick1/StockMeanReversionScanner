@@ -140,7 +140,8 @@ tr:hover td{background:rgba(124,106,247,.08);}
 <script>
 var PROXIES = [
   'https://corsproxy.io/?url=',
-  'https://api.allorigins.win/raw?url='
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.org/?url='
 ];
 
 var STOCKS = [
@@ -230,7 +231,7 @@ function tvUrl(sym){
 async function proxyFetch(rawUrl){
   for(var pi=0;pi<PROXIES.length;pi++){
     try{
-      var res = await fetch(PROXIES[pi]+encodeURIComponent(rawUrl), {signal:AbortSignal.timeout(9000)});
+      var res = await fetch(PROXIES[pi]+encodeURIComponent(rawUrl), {signal:AbortSignal.timeout(12000)});
       if(res && res.ok) return res;
     }catch(e){}
   }
@@ -276,9 +277,11 @@ function calcBB(c,p){
 
 /* ── FETCH ONE STOCK'S INDICATORS ── */
 async function fetchOneInd(sym){
-  var blank={rsi:null,bb:null,bbPos:null,ma200:null,ma200Above:null,pctFromMA:null};
+  var blank={rsi:null,bb:null,bbPos:null,ma200:null,ma200Above:null,pctFromMA:null,lastClose:null,lastChg:0};
+  // Alternate between query1 and query2 to spread load
+  var host=Math.random()>0.5?'query1':'query2';
   try{
-    var url='https://query1.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=2y';
+    var url='https://'+host+'.finance.yahoo.com/v8/finance/chart/'+sym+'?interval=1d&range=2y';
     var res=await proxyFetch(url);
     if(!res) return blank;
     var json=await res.json();
@@ -298,24 +301,33 @@ async function fetchOneInd(sym){
     }
     var ma200Above=ma200!==null?last>ma200:null;
     var pctFromMA=ma200!==null?(last-ma200)/ma200*100:null;
-    return{rsi:rsi,bb:bb,bbPos:bbPos,ma200:ma200,ma200Above:ma200Above,pctFromMA:pctFromMA};
+    // Also capture last close price and daily change from the historical data
+    var prevClose=closes.length>1?closes[closes.length-2]:null;
+    var lastChg=prevClose&&prevClose>0?(last-prevClose)/prevClose*100:0;
+    return{rsi:rsi,bb:bb,bbPos:bbPos,ma200:ma200,ma200Above:ma200Above,pctFromMA:pctFromMA,lastClose:last,lastChg:lastChg};
   }catch(e){return blank;}
 }
 
-/* ── PARALLEL INDICATOR FETCH (5 concurrent) ── */
+/* ── PARALLEL INDICATOR FETCH (3 concurrent, with retry) ── */
 async function fetchAllIndicators(onProgress){
   var results=new Array(STOCKS.length).fill(null);
   var next=0; var done=0;
   async function worker(){
     while(next<STOCKS.length){
       var i=next++;
-      results[i]=await fetchOneInd(STOCKS[i].s);
+      var ind=await fetchOneInd(STOCKS[i].s);
+      // Retry once if everything came back null (timeout/rate-limit)
+      if(ind.rsi===null&&ind.ma200===null){
+        await sleep(1000);
+        ind=await fetchOneInd(STOCKS[i].s);
+      }
+      results[i]=ind;
       done++;
       onProgress(done,i,STOCKS[i].s,results[i]);
     }
   }
   var workers=[];
-  for(var w=0;w<5;w++) workers.push(worker());
+  for(var w=0;w<3;w++) workers.push(worker());
   await Promise.all(workers);
   return results;
 }
@@ -446,6 +458,7 @@ function renderTable(data){
     var sl=getScoreLabel(r.score);
     var pl=getPlay(r.score,r.ma200Above);
     var pf=r.price>0?('$'+r.price.toFixed(2)):'&mdash;';
+    var pfLabel=r.price>0?pf+' <small style="color:var(--muted);font-size:9px;font-weight:normal;">CLOSE</small>':pf;
     var cf=r.price>0?((r.chg>=0?'+':'')+r.chg.toFixed(2)+'%'):'&mdash;';
     var cc=r.chg<0?'neg':r.chg>0?'pos':'neu';
     var rf=r.rsi!==null?r.rsi.toFixed(1):'&mdash;';
@@ -466,7 +479,7 @@ function renderTable(data){
         +'</div>'
         +'<div class="tname">'+r.name+sb+'</div>'
       +'</td>'
-      +'<td class="r">'+pf+'</td>'
+      +'<td class="r">'+pfLabel+'</td>'
       +'<td class="r '+cc+'">'+cf+'</td>'
       +'<td class="r '+rc+'">'+rf+'</td>'
       +'<td class="'+bbCls(r.bbPos)+'">'+bbLabel(r.bbPos)+'</td>'
@@ -550,8 +563,8 @@ async function startLoad(){
     var prev=null;
     for(var pi=0;pi<prevResults.length;pi++){if(prevResults[pi].s===sym){prev=prevResults[pi];break;}}
     var r=Object.assign({},STOCKS[idx],ind,{
-      price:prev?prev.price:0,
-      chg:  prev?prev.chg:0,
+      price:prev?prev.price:(ind.lastClose||0),
+      chg:  prev?prev.chg:(ind.lastChg||0),
       pctFromMA:prev?prev.pctFromMA:null
     });
     if(r.ma200!==null&&r.price>0){
