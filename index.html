@@ -425,11 +425,12 @@ async function fetchStock(tk){
     const now=Math.floor(Date.now()/1000);
     // Use weekly candles going back 5 years to get enough data for 200-day MA
     // Weekly resolution gives us ~260 weeks = 5 years, enough for indicators
-    const from=now-(365*5*24*60*60);
+    // Use 1 year of daily candles - well within Finnhub free plan
+    const from=now-(370*24*60*60);
 
     const [quoteRes, candleRes] = await Promise.all([
       fetch(`https://finnhub.io/api/v1/quote?symbol=${tk.s}&token=${apiKey}`),
-      fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${tk.s}&resolution=W&from=${from}&to=${now}&token=${apiKey}`)
+      fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${tk.s}&resolution=D&from=${from}&to=${now}&token=${apiKey}`)
     ]);
 
     const [quote, candle] = await Promise.all([quoteRes.json(), candleRes.json()]);
@@ -443,11 +444,12 @@ async function fetchStock(tk){
     }
 
     const closes = candle.c;
-    // For weekly candles: 200-day MA ≈ 40-week MA, 20-day BB ≈ 4-week BB, RSI uses 14 weeks
+    // Daily candles: RSI(14), BB(20), SMA(200) - use all available data
     const rsi    = calcRSI(closes, 14);
-    const bb     = calcBB(closes, 4);
+    const bb     = calcBB(closes, 20);
     const bbPos  = getBBPos(price, bb);
-    const ma200  = calcSMA(closes, 40); // 40 weeks ≈ 200 trading days
+    // Use all available closes for 200MA - if less than 200 days use what we have
+    const ma200  = closes.length >= 200 ? calcSMA(closes, 200) : calcSMA(closes, closes.length);
 
     return{...tk,price,chg,rsi,bbPos,ma200,pctFromMA:null};
   }catch(e){
