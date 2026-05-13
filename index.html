@@ -135,8 +135,22 @@ body{background:var(--bg);color:var(--text);font-family:Tahoma,Geneva,sans-serif
 .filter-btn:hover,.filter-btn.active{background:var(--bg3);border-color:var(--green);color:var(--green);}
 .filter-cnt{font-size:16px;background:var(--bg3);border-radius:3px;padding:1px 5px;margin-left:3px;}
 
-/* TABLE */
-.tbl-wrap{overflow-x:auto;}
+/* HIT RATE + LAST SIGNAL */
+.hit-wrap{display:flex;flex-direction:column;gap:3px;min-width:130px;}
+.hit-row{display:flex;align-items:center;gap:5px;font-size:13px;}
+.hit-label{color:var(--muted2);font-size:12px;width:32px;flex-shrink:0;}
+.hit-bar-bg{flex:1;height:4px;background:var(--border2);border-radius:3px;}
+.hit-bar-fill{height:4px;border-radius:3px;transition:width .6s;}
+.hit-pct{font-size:13px;font-weight:700;min-width:30px;text-align:right;}
+.hit-pct.high{color:var(--green);} .hit-pct.mid{color:var(--yellow);} .hit-pct.low{color:var(--red);}
+.hit-signals{font-size:11px;color:var(--muted2);margin-top:1px;}
+.hit-loading{font-size:12px;color:var(--muted2);font-style:italic;}
+.last-signal{display:flex;flex-direction:column;gap:2px;min-width:110px;}
+.ls-days{font-size:14px;font-weight:700;}
+.ls-days.recent{color:var(--green);} .ls-days.moderate{color:var(--yellow);} .ls-days.old{color:var(--muted);}
+.ls-type{font-size:12px;color:var(--muted2);}
+.ls-rate{font-size:12px;font-weight:700;}
+.ls-rate.high{color:var(--green);} .ls-rate.mid{color:var(--yellow);} .ls-rate.low{color:var(--red);}
 table{width:100%;border-collapse:collapse;}
 thead th{background:var(--bg2);color:var(--muted2);font-size:15px;font-weight:700;
   text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;text-align:left;
@@ -353,6 +367,8 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
       <th data-col="ma" onclick="sortBy('ma')">vs 200-Day MA</th>
       <th data-col="score" onclick="sortBy('score')">Score</th>
       <th data-col="play" onclick="sortBy('play')">Play</th>
+      <th data-col="hitrate" onclick="sortBy('hitrate')">Hit Rate (1yr)</th>
+      <th data-col="lastSignal" onclick="sortBy('lastSignal')">Last Signal</th>
     </tr>
   </thead>
   <tbody id="tbody">
@@ -513,7 +529,7 @@ function startScan(){
 // ══════════════════════════════════════════════
 function renderSkeleton(){
   document.getElementById('tbody').innerHTML=STOCKS.map(t=>`
-    <tr id="row-${t.s}" data-sym="${t.s}" data-score="neutral" data-caution="${t.caution?1:0}" data-etf="${t.etf?1:0}" data-defensive="${t.defensive?1:0}">
+    <tr id="row-${t.s}" data-sym="${t.s}" data-score="neutral" data-caution="${t.caution?1:0}" data-etf="${t.etf?1:0}" data-defensive="${t.defensive?1:0}" data-hitrate="0" data-lastsignal="999">
       <td>
         <div class="sym-wrap">
           <a class="sym" href="https://www.tradingview.com/chart/?symbol=${t.s}" target="_blank">${t.s}</a>
@@ -529,6 +545,8 @@ function renderSkeleton(){
       <td><span class="ma-pill" id="ma-${t.s}">—</span></td>
       <td><span class="score-pill score-neutral" id="sc-${t.s}">—</span></td>
       <td><span class="play-pill play-wait" id="pl-${t.s}">Wait</span></td>
+      <td><div class="hit-wrap" id="mrhit-${t.s}"><span class="hit-loading">Loading…</span></div></td>
+      <td><div class="last-signal" id="lsig-${t.s}"><span class="hit-loading">Loading…</span></div></td>
     </tr>`).join('');
   updateCounts();
 }
@@ -961,6 +979,14 @@ function sortBy(col){
         va=SCORE_ORDER[a.dataset.score||'neutral']??2;
         vb=SCORE_ORDER[b.dataset.score||'neutral']??2;
         break;
+      case 'hitrate':
+        va=parseFloat(a.dataset.hitrate)||0;
+        vb=parseFloat(b.dataset.hitrate)||0;
+        break;
+      case 'lastSignal':
+        va=parseFloat(a.dataset.lastsignal)||999;
+        vb=parseFloat(b.dataset.lastsignal)||999;
+        break;
       case 'play':
         va=document.getElementById(`pl-${sa}`)?.textContent||'';
         vb=document.getElementById(`pl-${sb}`)?.textContent||'';
@@ -1105,6 +1131,149 @@ async function fetchClosingPrices(key){
 }
 
 // ══════════════════════════════════════════════
+//  HISTORICAL HIT RATE + LAST SIGNAL (Mean Reversion)
+// ══════════════════════════════════════════════
+async function loadAllMRStats(){
+  const PROXIES=[
+    s=>`https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+  ];
+  const BATCH=5, DELAY=400;
+  for(let i=0;i<STOCKS.length;i+=BATCH){
+    const batch=STOCKS.slice(i,i+BATCH);
+    await Promise.allSettled(batch.map(t=>calcMRStats(t,PROXIES)));
+    if(i+BATCH<STOCKS.length) await new Promise(r=>setTimeout(r,DELAY));
+  }
+}
+
+async function calcMRStats(ticker, PROXIES){
+  const hitEl  = document.getElementById(`mrhit-${ticker.s}`);
+  const lsigEl = document.getElementById(`lsig-${ticker.s}`);
+  const row    = document.getElementById(`row-${ticker.s}`);
+
+  for(const proxy of PROXIES){
+    try{
+      const r=await fetch(proxy(ticker.s),{signal:AbortSignal.timeout(8000)});
+      if(!r.ok) continue;
+      const d=await r.json();
+      const res=d?.chart?.result?.[0];
+      if(!res) continue;
+      const quotes=res.indicators?.quote?.[0];
+      const closes=quotes?.close, timestamps=res.timestamp;
+      if(!closes||closes.length<21) continue;
+
+      // Pre-calc RSI for each day to find Strong Buy/Sell signals
+      let buySignals=0, buyHits=0, buyGain=0;
+      let sellSignals=0, sellHits=0, sellGain=0;
+      let lastBuyDays=999, lastSellDays=999;
+      let lastBuyType='', lastSellType='';
+      const today=new Date();
+
+      for(let i=20;i<closes.length-1;i++){
+        const slice=closes.slice(i-14,i+1).filter(v=>v!=null);
+        if(slice.length<15) continue;
+        const rsi=calcRSIArr(slice);
+        const curr=closes[i];
+        const nextClose=closes[i+1];
+        if(!curr||!nextClose) continue;
+
+        // Calc BB
+        const bbSlice=closes.slice(Math.max(0,i-19),i+1).filter(v=>v!=null);
+        const mean=bbSlice.reduce((a,b)=>a+b,0)/bbSlice.length;
+        const std=Math.sqrt(bbSlice.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/bbSlice.length);
+        const lower=mean-2*std, upper=mean+2*std;
+        const atLower=curr<=lower, atUpper=curr>=upper;
+
+        // Strong Buy signal: RSI<30 + lower BB
+        if(rsi<30&&atLower){
+          buySignals++;
+          if(nextClose>curr){ buyHits++; buyGain+=((nextClose-curr)/curr*100); }
+          // Days since
+          if(timestamps&&timestamps[i]){
+            const sigDate=new Date(timestamps[i]*1000);
+            const days=Math.floor((today-sigDate)/(1000*60*60*24));
+            if(days<lastBuyDays){lastBuyDays=days;lastBuyType='Strong Buy';}
+          }
+        }
+
+        // Strong Sell signal: RSI>70 + upper BB
+        if(rsi>70&&atUpper){
+          sellSignals++;
+          if(nextClose<curr){ sellHits++; sellGain+=((curr-nextClose)/curr*100); }
+          if(timestamps&&timestamps[i]){
+            const sigDate=new Date(timestamps[i]*1000);
+            const days=Math.floor((today-sigDate)/(1000*60*60*24));
+            if(days<lastSellDays){lastSellDays=days;lastSellType='Strong Sell';}
+          }
+        }
+      }
+
+      // ── Hit Rate display ──
+      const pctClass=p=>p>=70?'high':p>=50?'mid':'low';
+      const barColor=p=>p>=70?'#34d399':p>=50?'#fbbf24':'#f87171';
+      const totalSigs=buySignals+sellSignals;
+
+      if(hitEl){
+        if(totalSigs===0){
+          hitEl.innerHTML=`<span class="hit-signals">No signals in past year</span>`;
+        } else {
+          const buyRate=buySignals>0?Math.round(buyHits/buySignals*100):0;
+          const sellRate=sellSignals>0?Math.round(sellHits/sellSignals*100):0;
+          hitEl.innerHTML=`
+            ${buySignals>0?`<div class="hit-row">
+              <span class="hit-label" style="color:#34d399">Buy</span>
+              <div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${buyRate}%;background:${barColor(buyRate)}"></div></div>
+              <span class="hit-pct ${pctClass(buyRate)}">${buyRate}%</span>
+            </div>`:''}
+            ${sellSignals>0?`<div class="hit-row">
+              <span class="hit-label" style="color:#f87171">Sell</span>
+              <div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${sellRate}%;background:${barColor(sellRate)}"></div></div>
+              <span class="hit-pct ${pctClass(sellRate)}">${sellRate}%</span>
+            </div>`:''}
+            <div class="hit-signals">${totalSigs} signal${totalSigs!==1?'s':''} · 1yr</div>`;
+          if(row) row.dataset.hitrate=Math.max(buyRate,sellRate);
+        }
+      }
+
+      // ── Last Signal display ──
+      const bestDays=Math.min(lastBuyDays,lastSellDays);
+      const bestType=lastBuyDays<lastSellDays?lastBuyType:lastSellType;
+      const bestRate=bestType==='Strong Buy'?(buySignals>0?Math.round(buyHits/buySignals*100):0):(sellSignals>0?Math.round(sellHits/sellSignals*100):0);
+
+      if(lsigEl){
+        if(bestDays===999){
+          lsigEl.innerHTML=`<span class="hit-signals">No signals yet</span>`;
+        } else {
+          const daysClass=bestDays<=7?'recent':bestDays<=30?'moderate':'old';
+          const daysLabel=bestDays===0?'Today':bestDays===1?'Yesterday':`${bestDays}d ago`;
+          lsigEl.innerHTML=`
+            <span class="ls-days ${daysClass}">${daysLabel}</span>
+            <span class="ls-type">${bestType}</span>
+            <span class="ls-rate ${pctClass(bestRate)}">${bestRate}% hit rate</span>`;
+          if(row) row.dataset.lastsignal=bestDays;
+        }
+      }
+      return;
+    }catch(e){}
+  }
+  if(hitEl) hitEl.innerHTML=`<span class="hit-loading">Unavailable</span>`;
+  if(lsigEl) lsigEl.innerHTML=`<span class="hit-loading">Unavailable</span>`;
+}
+
+function calcRSIArr(closes){
+  const period=14;
+  if(closes.length<period+1) return 50;
+  let gains=0,losses=0;
+  for(let i=closes.length-period;i<closes.length;i++){
+    const diff=closes[i]-closes[i-1];
+    if(diff>0) gains+=diff; else losses+=Math.abs(diff);
+  }
+  const avgG=gains/period,avgL=losses/period;
+  if(avgL===0) return 100;
+  return 100-(100/(1+(avgG/avgL)));
+}
+
+// ══════════════════════════════════════════════
 //  AUTO-LOAD
 // ══════════════════════════════════════════════
 window.addEventListener('load',()=>{
@@ -1124,6 +1293,8 @@ window.addEventListener('load',()=>{
   connectWS(saved);
   // 5. Load RSI/BB/200MA indicators
   loadIndicators();
+  // 6. Load historical hit rates + days since last signal
+  loadAllMRStats();
 });
 </script>
 </body>
