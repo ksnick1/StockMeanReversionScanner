@@ -106,6 +106,27 @@ body{background:var(--bg);color:var(--text);font-family:Tahoma,Geneva,sans-serif
 /* CUSTOM STOCK TAG */
 .custom-tag{font-size:12px;color:var(--blue);background:rgba(96,165,250,.1);
   border:1px solid rgba(96,165,250,.25);border-radius:3px;padding:1px 5px;margin-left:4px;}
+/* FOUND PANEL (existing stock) */
+.found-panel{background:var(--bg2);border:1px solid var(--blue);border-radius:10px;
+  padding:14px 18px;margin-bottom:12px;display:none;align-items:center;gap:10px;flex-wrap:wrap;}
+.found-panel-msg{font-size:15px;color:var(--muted);}
+.found-panel-sym{font-size:16px;font-weight:700;color:var(--blue);}
+.btn-remove{background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:var(--red);
+  border-radius:6px;padding:6px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-remove:hover{background:rgba(248,113,113,.28);}
+/* CONFIRM REMOVE MODAL */
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1001;display:none;align-items:center;justify-content:center;padding:16px;}
+.confirm-overlay.open{display:flex;}
+.confirm-box{background:#0d0d1a;border:1px solid var(--red);border-radius:14px;padding:24px;max-width:480px;width:100%;box-shadow:0 0 40px rgba(248,113,113,.2);}
+.confirm-title{font-size:17px;font-weight:700;color:var(--red);margin-bottom:8px;}
+.confirm-msg{font-size:15px;color:var(--muted);margin-bottom:6px;line-height:1.5;}
+.confirm-sym{font-size:16px;font-weight:700;color:var(--text);}
+.confirm-note{font-size:13px;color:var(--muted2);margin-bottom:18px;line-height:1.5;}
+.confirm-btns{display:flex;gap:10px;flex-wrap:wrap;}
+.btn-confirm-remove{background:var(--red);color:#fff;border:none;border-radius:6px;padding:8px 22px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-confirm-remove:hover{background:#f55;}
+.btn-confirm-cancel{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:8px 16px;font-size:15px;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-confirm-cancel:hover{color:var(--text);}
 /* FILTER BAR */
 .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
 .filter-btn{background:var(--bg2);border:1px solid var(--border2);color:var(--muted);
@@ -251,12 +272,33 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
   <span style="font-size:14px;color:var(--muted2);">Search existing stocks or type a new ticker to add it</span>
 </div>
 
-<!-- ADD STOCK PANEL -->
+<!-- ADD STOCK PANEL (new stock) -->
 <div class="add-panel" id="addPanel">
   <span class="add-panel-msg">📊 <span class="add-panel-sym" id="addSym"></span> is not on the scanner —</span>
   <button class="btn-add" id="btnAdd" onclick="addCustomStock()">+ Add for This Session</button>
   <button class="btn-save-perm" id="btnSavePerm" onclick="showSavePermanently()">💾 Save Permanently</button>
   <button class="btn-cancel" onclick="clearSearch()">Cancel</button>
+</div>
+
+<!-- FOUND PANEL (existing stock) -->
+<div class="found-panel" id="foundPanel">
+  <span class="found-panel-msg">Found: <span class="found-panel-sym" id="foundSym"></span> is already on the scanner —</span>
+  <button class="btn-save-perm" onclick="showSavePermanentlyFound()">💾 Save Permanently</button>
+  <button class="btn-remove" onclick="showConfirmRemove()">🗑 Remove from Scanner</button>
+  <button class="btn-cancel" onclick="clearSearch()">Cancel</button>
+</div>
+
+<!-- CONFIRM REMOVE MODAL -->
+<div class="confirm-overlay" id="confirmModal" onclick="if(event.target===this)closeConfirm()">
+  <div class="confirm-box">
+    <div class="confirm-title">🗑 Remove Stock?</div>
+    <div class="confirm-msg">Are you sure you want to remove <span class="confirm-sym" id="confirmSym"></span> from the scanner?</div>
+    <div class="confirm-note">This only removes it for this session. To remove it permanently from GitHub, use the <strong>💾 Save Permanently</strong> instructions — but select the line to delete instead of paste.</div>
+    <div class="confirm-btns">
+      <button class="btn-confirm-remove" onclick="confirmRemove()">Yes, Remove It</button>
+      <button class="btn-confirm-cancel" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <!-- SAVE PERMANENTLY MODAL -->
@@ -709,13 +751,14 @@ function handleSearch(val){
   const q = val.trim().toUpperCase();
   const clearBtn = document.getElementById('searchClear');
   const addPanel = document.getElementById('addPanel');
+  const foundPanel = document.getElementById('foundPanel');
 
   clearBtn.style.display = q ? 'block' : 'none';
 
   if(!q){
-    // Restore all rows per current filter
     applyFilter();
     addPanel.style.display='none';
+    foundPanel.style.display='none';
     return;
   }
 
@@ -724,18 +767,21 @@ function handleSearch(val){
   const match = allSyms.find(s=>s===q);
 
   if(match){
-    // Highlight the matching row, hide everything else
+    // Show the row and the found panel with Save + Remove options
     document.querySelectorAll('#tbody tr[data-sym]').forEach(r=>{
       r.style.display = r.dataset.sym===q ? '' : 'none';
     });
+    document.getElementById('foundSym').textContent = q;
+    foundPanel.dataset.sym = q;
+    foundPanel.style.display='flex';
     addPanel.style.display='none';
   } else {
-    // Not found — show all rows faded + offer to add
+    // Not on page — show add panel
     document.querySelectorAll('#tbody tr[data-sym]').forEach(r=>{
       r.style.display='';
       r.style.opacity = r.dataset.sym.startsWith(q) ? '1' : '0.3';
     });
-    // Show add panel if it looks like a real ticker (1-5 letters)
+    foundPanel.style.display='none';
     if(q.length >= 1 && q.length <= 6 && /^[A-Z.\-]+$/.test(q)){
       document.getElementById('addSym').textContent = q;
       document.getElementById('btnAdd').dataset.sym = q;
@@ -759,9 +805,42 @@ function clearSearch(){
   document.getElementById('searchInput').value='';
   document.getElementById('searchClear').style.display='none';
   document.getElementById('addPanel').style.display='none';
-  // Reset row opacity
-  document.querySelectorAll('#tbody tr[data-sym]').forEach(r=>r.style.opacity='1');
+  document.getElementById('foundPanel').style.display='none';
+  document.querySelectorAll('#tbody tr[data-sym]').forEach(r=>{ r.style.opacity='1'; });
   applyFilter();
+}
+
+// ── Save Permanently for an existing stock ──
+function showSavePermanentlyFound(){
+  const sym = document.getElementById('foundSym').textContent.trim();
+  const line = `  {s:'${sym}',  name:'${sym}'},`;
+  document.getElementById('modalCode').textContent = line;
+  document.getElementById('saveModal').classList.add('open');
+}
+
+// ── Remove stock ──
+function showConfirmRemove(){
+  const sym = document.getElementById('foundPanel').dataset.sym;
+  document.getElementById('confirmSym').textContent = sym;
+  document.getElementById('confirmModal').dataset.sym = sym;
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirm(){
+  document.getElementById('confirmModal').classList.remove('open');
+}
+function confirmRemove(){
+  const sym = document.getElementById('confirmModal').dataset.sym;
+  closeConfirm();
+  clearSearch();
+  // Hide the row from the table
+  const row = document.getElementById(`row-${sym}`);
+  if(row){
+    row.style.transition='opacity .3s';
+    row.style.opacity='0';
+    setTimeout(()=>{ row.style.display='none'; updateCounts(); }, 300);
+  }
+  // Remove from customStocks if it was a session-added stock
+  customStocks = customStocks.filter(s=>s!==sym);
 }
 
 async function addCustomStock(sym){
