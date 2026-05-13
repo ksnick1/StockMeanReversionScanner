@@ -279,7 +279,7 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
     <div class="brand-icon">MR</div>
     <div>
       <div class="brand-name">Mean Reversion Scanner</div>
-      <div class="brand-sub">Monument Traders Alliance · RSI · Bollinger Bands · 200-Day MA · 82 Stocks</div>
+      <div class="brand-sub">Monument Traders Alliance · RSI · Bollinger Bands · 200-Day MA · <span id="stockCount">—</span> Stocks</div>
     </div>
   </div>
   <div class="hright">
@@ -489,6 +489,10 @@ const TICKERS=[
 ];
 const seen=new Set();
 const STOCKS=TICKERS.filter(t=>{if(seen.has(t.s))return false;seen.add(t.s);return true;});
+document.addEventListener('DOMContentLoaded',()=>{
+  const el=document.getElementById('stockCount');
+  if(el) el.textContent=STOCKS.length;
+});
 
 // ══════════════════════════════════════════════
 //  STATE
