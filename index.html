@@ -893,15 +893,15 @@ function restoreData(){
       Object.keys(saved).forEach(sym=>{
         prices[sym]=saved[sym];
         const p=saved[sym];
-        // Show last known price with CLOSE tag
         const pEl=document.getElementById(`p-${sym}`);
         const cEl=document.getElementById(`c-${sym}`);
         const srcEl=document.getElementById(`src-${sym}`);
-        if(pEl) pEl.textContent='$'+p.price.toFixed(2);
+        if(pEl) pEl.textContent='$'+Number(p.price).toFixed(2);
         if(srcEl){srcEl.textContent='CLOSE';srcEl.className='src-tag src-close';}
         if(cEl){
-          cEl.textContent=(p.chgPct>=0?'+':'')+p.chgPct.toFixed(2)+'%';
-          cEl.className='chg '+(p.chgPct>0?'pos':p.chgPct<0?'neg':'neu');
+          const chg=Number(p.chgPct)||0;
+          cEl.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%';
+          cEl.className='chg '+(chg>0?'pos':chg<0?'neg':'neu');
         }
       });
     }
@@ -912,7 +912,48 @@ function restoreData(){
         applyIndicators(sym,saved[sym],prices[sym]?.price||saved[sym].lastClose);
       });
     }
-  }catch(e){}
+  }catch(e){ console.warn('restoreData error',e); }
+}
+
+// ── Fetch closing prices via Finnhub REST when market is closed ──
+function isMarketOpen(){
+  const et=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const day=et.getDay(), mins=et.getHours()*60+et.getMinutes();
+  return day>=1&&day<=5&&mins>=570&&mins<960;
+}
+
+async function fetchClosingPrices(key){
+  // Use Finnhub quote endpoint to get last close for each stock
+  const BATCH=6, DELAY=300;
+  for(let i=0;i<STOCKS.length;i+=BATCH){
+    const batch=STOCKS.slice(i,i+BATCH);
+    await Promise.allSettled(batch.map(async t=>{
+      try{
+        const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`,{signal:AbortSignal.timeout(6000)});
+        if(!r.ok) return;
+        const d=await r.json();
+        if(!d||!d.c) return;
+        const price=d.c;           // current/close price
+        const prevClose=d.pc||d.c; // previous close
+        const chgPct=prevClose?((price-prevClose)/prevClose*100):0;
+        prices[t.s]={price,prevClose,chgPct};
+        // Update display
+        const pEl=document.getElementById(`p-${t.s}`);
+        const cEl=document.getElementById(`c-${t.s}`);
+        const srcEl=document.getElementById(`src-${t.s}`);
+        if(pEl) pEl.textContent='$'+price.toFixed(2);
+        if(srcEl){srcEl.textContent='CLOSE';srcEl.className='src-tag src-close';}
+        if(cEl){
+          cEl.textContent=(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%';
+          cEl.className='chg '+(chgPct>0?'pos':chgPct<0?'neg':'neu');
+        }
+        // Update score if indicators already loaded
+        if(indics[t.s]) applyIndicators(t.s,indics[t.s],price);
+      }catch(e){}
+    }));
+    if(i+BATCH<STOCKS.length) await sleep(DELAY);
+  }
+  savePrices();
 }
 
 // ══════════════════════════════════════════════
@@ -922,10 +963,15 @@ window.addEventListener('load',()=>{
   const baked='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
   const saved=localStorage.getItem('finnhub_key')||baked;
   document.getElementById('apiKey').value=saved;
-  // Render skeleton, restore last-known data immediately, then connect live
+  // 1. Render rows
   renderSkeleton();
+  // 2. Restore cached prices immediately (shows last known data right away)
   restoreData();
+  // 3. Always fetch fresh closing prices from Finnhub REST (works open or closed)
+  fetchClosingPrices(saved);
+  // 4. Connect WebSocket for live ticks during market hours
   connectWS(saved);
+  // 5. Load RSI/BB/200MA indicators
   loadIndicators();
 });
 </script>
