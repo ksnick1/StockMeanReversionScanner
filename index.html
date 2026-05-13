@@ -690,32 +690,48 @@ function updatePriceCellLive(sym,price,chgPct,old){
 }
 
 // ══════════════════════════════════════════════
-//  FINNHUB REST SWEEP — forces LIVE tag on all
-//  stocks immediately after WebSocket connects,
-//  even if no trade tick has arrived yet
+//  YAHOO SWEEP — runs every 60s during market
+//  hours, forces current price + LIVE tag on
+//  every stock regardless of WebSocket activity
 // ══════════════════════════════════════════════
 async function sweepFinnhubREST(key){
-  if(!key) return;
+  // Ignore key param — use Yahoo Finance instead (more reliable for all 82 stocks)
+  await sweepYahooPrices();
+  // Re-run every 60 seconds during market hours
+  if(isMarketOpen()) setTimeout(()=>sweepFinnhubREST(key), 60000);
+}
+
+function isMarketOpen(){
+  const et=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
+  const day=et.getDay(),mins=et.getHours()*60+et.getMinutes();
+  return day>=1&&day<=5&&mins>=570&&mins<960;
+}
+
+async function sweepYahooPrices(){
   const BATCH=6, DELAY=300;
   for(let i=0;i<STOCKS.length;i+=BATCH){
     await Promise.allSettled(STOCKS.slice(i,i+BATCH).map(async t=>{
-      // Skip if WebSocket already sent a live tick for this stock
-      if(prices[t.s]?.live) return;
-      try{
-        const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`,{signal:AbortSignal.timeout(6000)});
-        if(!r.ok) return;
-        const d=await r.json();
-        if(!d||!d.c) return;
-        const livePrice=d.c;
-        const prevClose=prices[t.s]?.prevClose||d.pc||livePrice;
-        const chgPct=prevClose>0?((livePrice-prevClose)/prevClose*100):0;
-        const oldPrice=prices[t.s]?.price;
-        prices[t.s]={price:livePrice,prevClose,chgPct,live:true};
-        updatePriceCellLive(t.s,livePrice,chgPct,oldPrice);
-      }catch(e){}
+      for(const proxy of P_PROXIES){
+        try{
+          const r=await fetch(proxy(t.s),{signal:AbortSignal.timeout(8000)});
+          if(!r.ok) continue;
+          const d=await r.json();
+          const meta=d?.chart?.result?.[0]?.meta;
+          if(!meta) continue;
+          const livePrice=meta.regularMarketPrice||meta.chartPreviousClose||0;
+          if(!livePrice) continue;
+          const prevClose=prices[t.s]?.prevClose||meta.previousClose||meta.chartPreviousClose||livePrice;
+          const chgPct=prevClose>0?((livePrice-prevClose)/prevClose*100):0;
+          const oldPrice=prices[t.s]?.price;
+          prices[t.s]={price:livePrice,prevClose,chgPct,live:true};
+          updatePriceCellLive(t.s,livePrice,chgPct,oldPrice);
+          return;
+        }catch(e){}
+      }
     }));
     if(i+BATCH<STOCKS.length) await sleep(DELAY);
   }
+  savePrices();
 }
 
 // ══════════════════════════════════════════════
