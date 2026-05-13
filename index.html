@@ -654,6 +654,7 @@ function connectWS(key){
   ws.onopen=()=>{
     st.className='scan-status ok';st.textContent='✓ Live prices streaming';
     STOCKS.forEach(t=>ws.send(JSON.stringify({type:'subscribe',symbol:t.s})));
+    setTimeout(()=>sweepFinnhubREST(document.getElementById('apiKey').value.trim()),3000);
   };
   ws.onmessage=(e)=>{
     const d=JSON.parse(e.data);
@@ -686,6 +687,35 @@ function updatePriceCellLive(sym,price,chgPct,old){
   updateCardPrice(sym,price,chgPct);
   if(indics[sym]) applyIndicators(sym,indics[sym],price);
   savePrices();
+}
+
+// ══════════════════════════════════════════════
+//  FINNHUB REST SWEEP — forces LIVE tag on all
+//  stocks immediately after WebSocket connects,
+//  even if no trade tick has arrived yet
+// ══════════════════════════════════════════════
+async function sweepFinnhubREST(key){
+  if(!key) return;
+  const BATCH=6, DELAY=300;
+  for(let i=0;i<STOCKS.length;i+=BATCH){
+    await Promise.allSettled(STOCKS.slice(i,i+BATCH).map(async t=>{
+      // Skip if WebSocket already sent a live tick for this stock
+      if(prices[t.s]?.live) return;
+      try{
+        const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`,{signal:AbortSignal.timeout(6000)});
+        if(!r.ok) return;
+        const d=await r.json();
+        if(!d||!d.c) return;
+        const livePrice=d.c;
+        const prevClose=prices[t.s]?.prevClose||d.pc||livePrice;
+        const chgPct=prevClose>0?((livePrice-prevClose)/prevClose*100):0;
+        const oldPrice=prices[t.s]?.price;
+        prices[t.s]={price:livePrice,prevClose,chgPct,live:true};
+        updatePriceCellLive(t.s,livePrice,chgPct,oldPrice);
+      }catch(e){}
+    }));
+    if(i+BATCH<STOCKS.length) await sleep(DELAY);
+  }
 }
 
 // ══════════════════════════════════════════════
