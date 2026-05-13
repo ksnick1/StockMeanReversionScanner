@@ -140,7 +140,12 @@ body{background:var(--bg);color:var(--text);font-family:Tahoma,Geneva,sans-serif
 table{width:100%;border-collapse:collapse;}
 thead th{background:var(--bg2);color:var(--muted2);font-size:15px;font-weight:700;
   text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;text-align:left;
-  border-bottom:1px solid var(--border2);white-space:nowrap;}
+  border-bottom:1px solid var(--border2);white-space:nowrap;
+  cursor:pointer;user-select:none;transition:color .15s;}
+thead th:hover{color:var(--green);}
+thead th.sort-asc::after{content:' ▲';font-size:11px;color:var(--green);}
+thead th.sort-desc::after{content:' ▼';font-size:11px;color:var(--green);}
+thead th.sort-asc,thead th.sort-desc{color:var(--green);}
 tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
 tbody tr:hover{background:var(--bg2);}
 td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
@@ -340,14 +345,14 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
 <table>
   <thead>
     <tr>
-      <th>Symbol</th>
-      <th>Price 🟢 Live</th>
-      <th>Chg % 🟢 Live</th>
-      <th>RSI (14)</th>
-      <th>Bollinger Band</th>
-      <th>vs 200-Day MA</th>
-      <th>Score</th>
-      <th>Play</th>
+      <th data-col="sym" onclick="sortBy('sym')">Symbol</th>
+      <th data-col="price" onclick="sortBy('price')">Price 🟢 Live</th>
+      <th data-col="chg" onclick="sortBy('chg')">Chg % 🟢 Live</th>
+      <th data-col="rsi" onclick="sortBy('rsi')">RSI (14)</th>
+      <th data-col="bb" onclick="sortBy('bb')">Bollinger Band</th>
+      <th data-col="ma" onclick="sortBy('ma')">vs 200-Day MA</th>
+      <th data-col="score" onclick="sortBy('score')">Score</th>
+      <th data-col="play" onclick="sortBy('play')">Play</th>
     </tr>
   </thead>
   <tbody id="tbody">
@@ -683,9 +688,9 @@ function applyIndicators(sym,ind,price){
   // BB
   const bbEl=document.getElementById(`bb-${sym}`);
   if(bbEl){
-    if(bbPos==='lower'){bbEl.textContent='Lower Band';bbEl.className='bb-pill bb-lower';}
-    else if(bbPos==='upper'){bbEl.textContent='Upper Band';bbEl.className='bb-pill bb-upper';}
-    else{bbEl.textContent='Mid Band';bbEl.className='bb-pill bb-mid';}
+    if(bbPos==='lower'){bbEl.textContent='Lower Band';bbEl.className='bb-pill bb-lower';bbEl.dataset.bb='lower';}
+    else if(bbPos==='upper'){bbEl.textContent='Upper Band';bbEl.className='bb-pill bb-upper';bbEl.dataset.bb='upper';}
+    else{bbEl.textContent='Mid Band';bbEl.className='bb-pill bb-mid';bbEl.dataset.bb='mid';}
   }
   // 200MA
   const maEl=document.getElementById(`ma-${sym}`);
@@ -905,6 +910,70 @@ async function addCustomStock(sym){
 }
 
 // ══════════════════════════════════════════════
+//  COLUMN SORT
+// ══════════════════════════════════════════════
+let sortCol = 'score', sortDir = 'desc';
+
+const SCORE_ORDER = {sbuy:4, buy:3, neutral:2, sell:1, ssell:0};
+const BB_ORDER    = {lower:0, mid:1, upper:2};
+
+function sortBy(col){
+  if(sortCol === col){ sortDir = sortDir==='asc'?'desc':'asc'; }
+  else { sortCol=col; sortDir=col==='sym'?'asc':'desc'; }
+
+  // Update header arrows
+  document.querySelectorAll('thead th').forEach(th=>{
+    th.classList.remove('sort-asc','sort-desc');
+    if(th.dataset.col===col) th.classList.add(sortDir==='asc'?'sort-asc':'sort-desc');
+  });
+
+  const tbody = document.getElementById('tbody');
+  const rows  = Array.from(tbody.querySelectorAll('tr[data-sym]'));
+
+  rows.sort((a,b)=>{
+    const sa=a.dataset.sym, sb=b.dataset.sym;
+    let va, vb;
+    switch(col){
+      case 'sym':
+        va=sa; vb=sb;
+        return sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+      case 'price':
+        va=parseFloat(document.getElementById(`p-${sa}`)?.textContent?.replace('$',''))||0;
+        vb=parseFloat(document.getElementById(`p-${sb}`)?.textContent?.replace('$',''))||0;
+        break;
+      case 'chg':
+        va=parseFloat(document.getElementById(`c-${sa}`)?.textContent)||0;
+        vb=parseFloat(document.getElementById(`c-${sb}`)?.textContent)||0;
+        break;
+      case 'rsi':
+        va=parseFloat(document.getElementById(`rsi-${sa}`)?.textContent)||0;
+        vb=parseFloat(document.getElementById(`rsi-${sb}`)?.textContent)||0;
+        break;
+      case 'bb':
+        va=BB_ORDER[document.getElementById(`bb-${sa}`)?.dataset.bb||'mid']??1;
+        vb=BB_ORDER[document.getElementById(`bb-${sb}`)?.dataset.bb||'mid']??1;
+        break;
+      case 'ma':
+        va=parseFloat(document.getElementById(`ma-${sa}`)?.textContent?.match(/[+-]?([\d.]+)%/)?.[0])||0;
+        vb=parseFloat(document.getElementById(`ma-${sb}`)?.textContent?.match(/[+-]?([\d.]+)%/)?.[0])||0;
+        break;
+      case 'score':
+        va=SCORE_ORDER[a.dataset.score||'neutral']??2;
+        vb=SCORE_ORDER[b.dataset.score||'neutral']??2;
+        break;
+      case 'play':
+        va=document.getElementById(`pl-${sa}`)?.textContent||'';
+        vb=document.getElementById(`pl-${sb}`)?.textContent||'';
+        return sortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+      default: return 0;
+    }
+    return sortDir==='asc'?va-vb:vb-va;
+  });
+
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+// ══════════════════════════════════════════════
 //  FILTER
 // ══════════════════════════════════════════════
 function setFilter(f,btn){
@@ -1042,6 +1111,9 @@ window.addEventListener('load',()=>{
   const baked='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
   const saved=localStorage.getItem('finnhub_key')||baked;
   document.getElementById('apiKey').value=saved;
+  // Mark Score as default sort column
+  const scoreHdr=document.querySelector('th[data-col="score"]');
+  if(scoreHdr) scoreHdr.classList.add('sort-desc');
   // 1. Render rows
   renderSkeleton();
   // 2. Restore cached prices immediately (shows last known data right away)
