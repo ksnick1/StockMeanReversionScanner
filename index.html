@@ -896,17 +896,12 @@ async function addCustomStock(sym) {
   if(ws && ws.readyState === 1) ws.send(JSON.stringify({type:'subscribe', symbol:sym}));
   const key = document.getElementById('apiKey').value.trim();
   if(key) {
-    // Fetch closing price for newly added stock
-    try {
-      const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${sym}&token=${key}`, {signal: AbortSignal.timeout(8000)});
-      const d = await r.json();
-      if(d && d.c && d.c > 0) {
-        const price = d.c, prevClose = d.pc || d.c;
-        const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
-        prices[sym] = { price, prevClose, chgPct };
-        updatePriceCell(sym, price, chgPct, undefined, 'CLOSE');
-      }
-    } catch(e) {}
+    // Use Yahoo for accurate price (Finnhub free tier has split-unadjusted prices)
+    const PROXIES = [
+      s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
+      s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
+    ];
+    await fetchYahooPrice(sym, PROXIES, key);
   }
   const PROXIES = [
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
@@ -983,53 +978,108 @@ function savePrices() { try { localStorage.setItem('mr_prices', JSON.stringify(p
 function saveIndics() { try { localStorage.setItem('mr_indics', JSON.stringify(indics)); } catch(e) {} }
 
 // ══════════════════════════════════════════════════════
-// FIX 5: fetchClosingPrices — gets BOTH current price
-// AND prevClose from Finnhub REST /quote endpoint.
-// Called BEFORE connectWS so chgPct works immediately.
-// Also retries any missing symbols once after a delay.
+// fetchClosingPrices — uses Yahoo Finance as price source
+// Finnhub free tier returns pre-split/wrong prices for many
+// tickers (MU at $778, SPY at $748, etc). Yahoo is accurate.
+// We pull the last 2 closes from Yahoo: prevClose + today's
+// close/current price. WebSocket then layers live trades on top.
 // ══════════════════════════════════════════════════════
 async function fetchClosingPrices(key) {
   const st = document.getElementById('scanStatus');
   st.textContent = 'Loading prices…';
-  const pBatch = 5, pDelay = 800;
-  for(let i = 0; i < STOCKS.length; i += pBatch) {
-    const batch = STOCKS.slice(i, i + pBatch);
+
+  const PROXIES = [
+    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
+    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
+    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
+    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
+  ];
+
+  const BATCH = 6, DELAY = 500;
+  for(let i = 0; i < STOCKS.length; i += BATCH) {
+    const batch = STOCKS.slice(i, i + BATCH);
     await Promise.allSettled(batch.map(async t => {
-      try {
-        const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`, {signal: AbortSignal.timeout(8000)});
-        if(!r.ok) return;
-        const d = await r.json();
-        if(!d || !d.c || d.c <= 0) return;
-        const price = d.c, prevClose = d.pc || d.c;
-        const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
-        prices[t.s] = { price, prevClose, chgPct };
-        updatePriceCell(t.s, price, chgPct, undefined, getPriceLabel());
-      } catch(e) {}
+      await fetchYahooPrice(t.s, PROXIES, key);
     }));
-    if(i + pBatch < STOCKS.length) await sleep(pDelay);
+    if(i + BATCH < STOCKS.length) await sleep(DELAY);
   }
-  // Retry any still missing — (network blip protection)
-  await sleep(2000);
+
+  // Retry anything still missing with Finnhub as last resort
+  await sleep(1000);
   const missing = STOCKS.filter(t => !prices[t.s]?.price);
   if(missing.length > 0) {
     for(let i = 0; i < missing.length; i += 3) {
-      const batch = missing.slice(i, i + 3);
-      await Promise.allSettled(batch.map(async t => {
+      await Promise.allSettled(missing.slice(i, i+3).map(async t => {
         try {
           const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`, {signal: AbortSignal.timeout(8000)});
           if(!r.ok) return;
           const d = await r.json();
           if(!d || !d.c || d.c <= 0) return;
-          const price = d.c, prevClose = d.pc || d.c;
-          const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
-          prices[t.s] = { price, prevClose, chgPct };
-          updatePriceCell(t.s, price, chgPct, undefined, getPriceLabel());
+          // Finnhub sanity check: reject if chg% would be insane (split-unadjusted)
+          const prevClose = d.pc || d.c;
+          const chgPct = prevClose > 0 ? ((d.c - prevClose) / prevClose * 100) : 0;
+          if(Math.abs(chgPct) > 15) return; // skip obviously wrong prices
+          prices[t.s] = { price: d.c, prevClose, chgPct };
+          updatePriceCell(t.s, d.c, chgPct, undefined, getPriceLabel());
         } catch(e) {}
       }));
-      if(i + 3 < missing.length) await sleep(1000);
+      if(i + 3 < missing.length) await sleep(800);
     }
   }
   savePrices();
+  st.className = 'scan-status ok';
+  st.textContent = '✓ Prices loaded — connecting live feed…';
+}
+
+async function fetchYahooPrice(sym, PROXIES, key) {
+  for(const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(8000)});
+      if(!r.ok) continue;
+      const d = await r.json();
+      const res = d?.chart?.result?.[0];
+      if(!res) continue;
+
+      const closes = res.indicators?.quote?.[0]?.close;
+      const timestamps = res.timestamp;
+      if(!closes || closes.length < 2) continue;
+
+      // Get the last two valid closing prices
+      const validCloses = closes.map((c, i) => ({c, t: timestamps?.[i]})).filter(x => x.c != null && x.c > 0);
+      if(validCloses.length < 1) continue;
+
+      // Use meta for real-time price if available (Yahoo provides regularMarketPrice)
+      const meta = res.meta;
+      const livePrice = meta?.regularMarketPrice || validCloses[validCloses.length-1].c;
+      const prevClose = meta?.chartPreviousClose || meta?.previousClose || validCloses[Math.max(0, validCloses.length-2)].c || livePrice;
+
+      if(!livePrice || livePrice <= 0) continue;
+
+      const chgPct = prevClose > 0 ? ((livePrice - prevClose) / prevClose * 100) : 0;
+
+      // Sanity check — skip if chg% is insane (sign of bad data)
+      if(Math.abs(chgPct) > 20) continue;
+
+      prices[sym] = { price: livePrice, prevClose, chgPct };
+      updatePriceCell(sym, livePrice, chgPct, undefined, getPriceLabel());
+      return; // success — stop trying proxies
+    } catch(e) {}
+  }
+
+  // Final fallback: Finnhub candle (last close only, with sanity check)
+  try {
+    const to = Math.floor(Date.now()/1000);
+    const from = to - (7 * 24 * 60 * 60);
+    const d = await (await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`, {signal: AbortSignal.timeout(8000)})).json();
+    if(d.s !== 'ok' || !d.c || d.c.length < 2) return;
+    const price = d.c[d.c.length-1];
+    const prevClose = d.c[d.c.length-2];
+    if(!price || price <= 0) return;
+    const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
+    if(Math.abs(chgPct) > 20) return;
+    prices[sym] = { price, prevClose, chgPct };
+    updatePriceCell(sym, price, chgPct, undefined, getPriceLabel());
+  } catch(e) {}
 }
 
 // ── HISTORICAL HIT RATE + LAST SIGNAL ──
