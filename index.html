@@ -885,9 +885,9 @@ function restoreData(){
 
 // ── CLOSING PRICES (Finnhub REST) ──
 async function fetchClosingPrices(key){
-  const BATCH=3,DELAY=1200;
-  for(let i=0;i<STOCKS.length;i+=BATCH){
-    const batch=STOCKS.slice(i,i+BATCH);
+  const pBatch=5,pDelay=800;
+  for(let i=0;i<STOCKS.length;i+=pBatch){
+    const batch=STOCKS.slice(i,i+pBatch);
     await Promise.allSettled(batch.map(async t=>{
       try{
         const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`,{signal:AbortSignal.timeout(8000)});
@@ -906,34 +906,32 @@ async function fetchClosingPrices(key){
         if(indics[t.s]) applyIndicators(t.s,indics[t.s],price);
       }catch(e){}
     }));
-    if(i+BATCH<STOCKS.length) await sleep(DELAY);
+    if(i+pBatch<STOCKS.length) await sleep(pDelay);
   }
   // Retry any still missing
-  await sleep(3000);
+  await sleep(2000);
   const missing=STOCKS.filter(t=>!prices[t.s]?.price);
-  if(missing.length>0){
-    for(let i=0;i<missing.length;i+=2){
-      const batch=missing.slice(i,i+2);
-      await Promise.allSettled(batch.map(async t=>{
-        try{
-          const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`,{signal:AbortSignal.timeout(8000)});
-          if(!r.ok)return;
-          const d=await r.json();
-          if(!d||!d.c)return;
-          const price=d.c,prevClose=d.pc||d.c;
-          const chgPct=prevClose>0?((price-prevClose)/prevClose*100):0;
-          prices[t.s]={price,prevClose,chgPct};
-          const pEl=document.getElementById(`p-${t.s}`);
-          const cEl=document.getElementById(`c-${t.s}`);
-          const srcEl=document.getElementById(`src-${t.s}`);
-          if(pEl) pEl.textContent='$'+price.toFixed(2);
-          if(srcEl){srcEl.textContent='CLOSE';srcEl.className='src-tag src-close';}
-          if(cEl){cEl.textContent=(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%';cEl.className='chg '+(chgPct>0?'pos':chgPct<0?'neg':'neu');}
-          if(indics[t.s]) applyIndicators(t.s,indics[t.s],price);
-        }catch(e){}
-      }));
-      await sleep(1500);
-    }
+  for(let i=0;i<missing.length;i+=3){
+    const batch=missing.slice(i,i+3);
+    await Promise.allSettled(batch.map(async t=>{
+      try{
+        const r=await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`,{signal:AbortSignal.timeout(8000)});
+        if(!r.ok)return;
+        const d=await r.json();
+        if(!d||!d.c)return;
+        const price=d.c,prevClose=d.pc||d.c;
+        const chgPct=prevClose>0?((price-prevClose)/prevClose*100):0;
+        prices[t.s]={price,prevClose,chgPct};
+        const pEl=document.getElementById(`p-${t.s}`);
+        const cEl=document.getElementById(`c-${t.s}`);
+        const srcEl=document.getElementById(`src-${t.s}`);
+        if(pEl) pEl.textContent='$'+price.toFixed(2);
+        if(srcEl){srcEl.textContent='CLOSE';srcEl.className='src-tag src-close';}
+        if(cEl){cEl.textContent=(chgPct>=0?'+':'')+chgPct.toFixed(2)+'%';cEl.className='chg '+(chgPct>0?'pos':chgPct<0?'neg':'neu');}
+        if(indics[t.s]) applyIndicators(t.s,indics[t.s],price);
+      }catch(e){}
+    }));
+    if(i+3<missing.length) await sleep(1000);
   }
   savePrices();
 }
