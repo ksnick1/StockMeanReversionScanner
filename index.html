@@ -560,6 +560,8 @@ async function loadIndicators(){
   const PROXIES=[
     s=>`https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s=>`https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
   let loaded=0;
   const BATCH=8,DELAY=400;
@@ -578,6 +580,7 @@ async function loadIndicators(){
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
 async function fetchIndicator(sym,PROXIES){
+  // Try Yahoo Finance via CORS proxies first
   for(const proxy of PROXIES){
     try{
       const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(8000)});
@@ -595,6 +598,21 @@ async function fetchIndicator(sym,PROXIES){
       return;
     }catch(e){}
   }
+  // Auto-fallback: Finnhub candle API — no CORS issues!
+  try{
+    const key=document.getElementById('apiKey').value.trim();
+    if(!key) return;
+    const to=Math.floor(Date.now()/1000);
+    const from=to-(365*24*60*60);
+    const d=await(await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`,{signal:AbortSignal.timeout(8000)})).json();
+    if(d.s!=='ok'||!d.c||d.c.length<21) return;
+    const valid=d.c.filter(v=>v!=null&&!isNaN(v));
+    if(valid.length<21) return;
+    const ind=calcIndicators(valid);
+    indics[sym]=ind;
+    const currentPrice=prices[sym]?.price||valid[valid.length-1];
+    applyIndicators(sym,ind,currentPrice);
+  }catch(e){}
 }
 
 function calcIndicators(closes){
@@ -898,6 +916,8 @@ async function loadAllMRStats(){
   const PROXIES=[
     s=>`https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s=>`https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s=>`https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
   const BATCH=5,DELAY=400;
   for(let i=0;i<STOCKS.length;i+=BATCH){
