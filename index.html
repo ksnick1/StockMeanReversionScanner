@@ -1020,7 +1020,6 @@ function celebrate(){
   mrTimer=setTimeout(()=>{mrActive=false;},7000);
 }
 // Auto-celebrate on load + on Strong Buy signal
-window.addEventListener('load',()=>{setTimeout(()=>{celebrate();},800);});
 // Hook into applyIndicators to celebrate when Strong Buy appears
 const _origApply=applyIndicators;
 function applyIndicators(sym,ind,price){
@@ -1030,6 +1029,7 @@ function applyIndicators(sym,ind,price){
   if(newScore.includes('Strong Buy')&&!prevScore.includes('Strong Buy')){celebrate();}
 }
 
+window.addEventListener('load',()=>{
   const baked='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
   const saved=localStorage.getItem('finnhub_key')||baked;
   document.getElementById('apiKey').value=saved;
@@ -1041,6 +1041,7 @@ function applyIndicators(sym,ind,price){
   connectWS(saved);
   loadIndicators();
   loadAllMRStats();
+  setTimeout(()=>celebrate(),800);
 });
 </script>
 </body>
