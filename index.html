@@ -555,19 +555,20 @@ function restoreData() {
 }
 
 // ══════════════════════════════════════════════════════
-// FIX 2: startScan — correct order: REST first, then WS
-// fetchClosingPrices populates prevClose BEFORE WS fires
-// loadAllMRStats was also missing — now called here
+// startScan — loadIndicators now handles prices too
+// fetchIndicator extracts regularMarketPrice from the same
+// Yahoo response used for RSI/BB/MA — no separate price fetch,
+// no rate-limit cutoff, every stock gets a price guaranteed.
+// WebSocket layers live trades on top as they stream in.
 // ══════════════════════════════════════════════════════
 function startScan() {
   const key = document.getElementById('apiKey').value.trim();
   if(!key) { alert('Please enter your Finnhub API key.'); return; }
   localStorage.setItem('finnhub_key', key);
   renderSkeleton();
-  // ORDER MATTERS: REST first so prevClose exists when WS trades arrive
-  fetchClosingPrices(key);
-  connectWS(key);
-  loadIndicators();
+  // loadIndicators now fetches price AND indicators in one Yahoo call per stock
+  // connectWS streams live trades on top once prices/prevClose are populated
+  loadIndicators().then(() => connectWS(key));
   loadAllMRStats();
 }
 
@@ -701,12 +702,29 @@ async function fetchIndicator(sym, PROXIES) {
       if(valid.length < 21) continue;
       const ind = calcIndicators(valid);
       indics[sym] = ind;
+
+      // PRICE: extract from this same Yahoo response — one fetch, two jobs
+      // This guarantees ALL stocks get a price, no rate-limit cutoff at row 34
+      if(!prices[sym]?.price) {
+        const meta = res.meta;
+        const livePrice = meta?.regularMarketPrice;
+        const prevClose = meta?.chartPreviousClose || meta?.previousClose
+          || valid[valid.length-2] || valid[valid.length-1];
+        if(livePrice && livePrice > 0) {
+          const chgPct = prevClose > 0 ? ((livePrice - prevClose) / prevClose * 100) : 0;
+          if(Math.abs(chgPct) <= 20) {
+            prices[sym] = { price: livePrice, prevClose, chgPct };
+            updatePriceCell(sym, livePrice, chgPct, undefined, getPriceLabel());
+          }
+        }
+      }
+
       const currentPrice = prices[sym]?.price || valid[valid.length-1];
       applyIndicators(sym, ind, currentPrice);
       return;
     } catch(e) {}
   }
-  // Fallback: Finnhub candle API (no CORS issues)
+  // Fallback: Finnhub candle API (no CORS issues) — also extracts price
   try {
     const key = document.getElementById('apiKey').value.trim();
     if(!key) return;
@@ -718,6 +736,15 @@ async function fetchIndicator(sym, PROXIES) {
     if(valid.length < 21) return;
     const ind = calcIndicators(valid);
     indics[sym] = ind;
+    if(!prices[sym]?.price) {
+      const price = valid[valid.length-1];
+      const prevClose = valid[valid.length-2] || price;
+      const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
+      if(Math.abs(chgPct) <= 20) {
+        prices[sym] = { price, prevClose, chgPct };
+        updatePriceCell(sym, price, chgPct, undefined, getPriceLabel());
+      }
+    }
     const currentPrice = prices[sym]?.price || valid[valid.length-1];
     applyIndicators(sym, ind, currentPrice);
   } catch(e) {}
@@ -1233,7 +1260,7 @@ window.onload = function() {
   const savedKey = localStorage.getItem('finnhub_key');
   if(savedKey) {
     document.getElementById('apiKey').value = savedKey;
-    startScan(); // auto-fire if key is saved
+    startScan(); // auto-fire — loadIndicators will populate prices + connect WS
   }
 };
 </script>
