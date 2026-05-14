@@ -213,6 +213,7 @@ border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infini
     <div id="clock">--:--:-- --</div>
     <div id="mktBadge" class="market-badge closed">CLOSED</div>
     <button onclick="celebrate()" style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.4);border-radius:20px;padding:4px 14px;font-size:14px;cursor:pointer;color:#34d399;font-weight:700;font-family:Tahoma,Geneva,sans-serif;">💸 Make it Rain!</button>
+    <button onclick="exportCSV()" style="background:rgba(96,165,250,.15);border:1px solid rgba(96,165,250,.4);color:#60a5fa;border-radius:7px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;" title="Export visible rows to CSV">⬇ CSV</button>
     <button onclick="clearCache()" style="background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:#f87171;border-radius:7px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;">🗑 Clear Cache</button>
   </div>
 </div>
@@ -404,6 +405,76 @@ function clearCache() {
   localStorage.removeItem('mr_indics');
   alert('Cache cleared! The page will now reload fresh.');
   location.reload();
+}
+
+// ── EXPORT CSV ──
+// Exports all currently VISIBLE rows (respects active filter)
+function exportCSV() {
+  const rows = Array.from(document.querySelectorAll('#tbody tr[data-sym]'))
+    .filter(r => r.style.display !== 'none');
+
+  if(!rows.length) {
+    alert('No data to export yet — run a scan first!');
+    return;
+  }
+
+  const now = new Date().toLocaleString('en-US', {timeZone:'America/New_York'});
+  const filterLabel = filterMode === 'all' ? 'All Stocks' :
+    filterMode === 'strong' ? 'Strong Signals' :
+    filterMode === 'sbuy'   ? 'Strong Buy' :
+    filterMode === 'ssell'  ? 'Strong Sell' :
+    filterMode === 'caution'? 'Caution' :
+    filterMode === 'etf'    ? 'ETFs Only' :
+    filterMode === 'defensive' ? 'Defensive' : filterMode;
+
+  const headers = ['Symbol','Price','Chg %','RSI (14)','Bollinger Band','vs 200-Day MA','Score','Play','Hit Rate (Buy)','Hit Rate (Sell)','Last Signal','Days Since Signal'];
+
+  const csvRows = rows.map(row => {
+    const sym = row.dataset.sym;
+    const price = document.getElementById(`p-${sym}`)?.textContent || '—';
+    const chg   = document.getElementById(`c-${sym}`)?.textContent || '—';
+    const rsi   = document.getElementById(`rsi-${sym}`)?.textContent || '—';
+    const bb    = document.getElementById(`bb-${sym}`)?.textContent || '—';
+    const ma    = document.getElementById(`ma-${sym}`)?.textContent || '—';
+    const score = document.getElementById(`sc-${sym}`)?.textContent || '—';
+    const play  = document.getElementById(`pl-${sym}`)?.textContent || '—';
+
+    // Parse hit rate bars
+    const hitWrap = document.getElementById(`mrhit-${sym}`);
+    const hitRows = hitWrap ? hitWrap.querySelectorAll('.hit-row') : [];
+    let buyRate = '—', sellRate = '—';
+    hitRows.forEach(hr => {
+      const label = hr.querySelector('.hit-label')?.textContent?.trim();
+      const pct   = hr.querySelector('.hit-pct')?.textContent?.trim();
+      if(label === 'Buy')  buyRate  = pct || '—';
+      if(label === 'Sell') sellRate = pct || '—';
+    });
+
+    // Parse last signal
+    const lsig = document.getElementById(`lsig-${sym}`);
+    const lastType = lsig?.querySelector('.ls-type')?.textContent?.trim() || '—';
+    const lastDays = lsig?.querySelector('.ls-days')?.textContent?.trim() || '—';
+
+    return [sym, price, chg, rsi, bb, ma, score, play, buyRate, sellRate, lastType, lastDays];
+  });
+
+  const csvContent = [
+    [`Mean Reversion Scanner Export — ${now} ET`],
+    [`Filter: ${filterLabel} · ${rows.length} rows`],
+    [],
+    headers,
+    ...csvRows
+  ].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `MeanReversionScanner_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── MARKET STATUS HELPER ──
