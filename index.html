@@ -1019,15 +1019,6 @@ function celebrate(){
   requestAnimationFrame(mrLoop);
   mrTimer=setTimeout(()=>{mrActive=false;},7000);
 }
-// Auto-celebrate on load + on Strong Buy signal
-// Hook into applyIndicators to celebrate when Strong Buy appears
-const _origApply=applyIndicators;
-function applyIndicators(sym,ind,price){
-  const prevScore=document.getElementById(`sc-${sym}`)?.textContent||'';
-  _origApply(sym,ind,price);
-  const newScore=document.getElementById(`sc-${sym}`)?.textContent||'';
-  if(newScore.includes('Strong Buy')&&!prevScore.includes('Strong Buy')){celebrate();}
-}
 
 window.addEventListener('load',()=>{
   const baked='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
@@ -1042,6 +1033,15 @@ window.addEventListener('load',()=>{
   loadIndicators();
   loadAllMRStats();
   setTimeout(()=>celebrate(),800);
+
+  // Hook celebrate into Strong Buy signals
+  const _origApply=window.applyIndicators||applyIndicators;
+  window.applyIndicators=function(sym,ind,price){
+    const prevScore=document.getElementById(`sc-${sym}`)?.textContent||'';
+    _origApply(sym,ind,price);
+    const newScore=document.getElementById(`sc-${sym}`)?.textContent||'';
+    if(newScore.includes('Strong Buy')&&!prevScore.includes('Strong Buy')) celebrate();
+  };
 });
 </script>
 </body>
