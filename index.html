@@ -17,7 +17,7 @@ body{background:var(--bg);color:var(--text);font-family:Tahoma,Geneva,sans-serif
   background-image:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(52,211,153,.04) 0%,transparent 70%);}
 
 /* ═══ MONEY RAIN CANVAS ═══ */
-#money-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;}
+#money-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:0.85;}
 
 /* HEADER */
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;
@@ -1020,14 +1020,14 @@ mrResize();window.addEventListener('resize',mrResize);
 const BILLS=['💵','💴','💶','💷','💸','💰','🤑','⭐','✨','📈'];
 class Bill{
   constructor(){this.reset();}
-  reset(){this.x=Math.random()*mrW;this.y=-40;this.size=20+Math.random()*24;this.speed=2+Math.random()*4;this.sway=Math.random()*2-1;this.swaySpeed=0.02+Math.random()*0.03;this.swayAngle=Math.random()*Math.PI*2;this.rotation=Math.random()*Math.PI*2;this.rotSpeed=(Math.random()-0.5)*0.12;this.emoji=BILLS[Math.floor(Math.random()*BILLS.length)];this.alpha=0.85+Math.random()*0.15;}
+  reset(){this.x=Math.random()*mrW;this.y=-40;this.size=14+Math.random()*14;this.speed=2+Math.random()*4;this.sway=Math.random()*2-1;this.swaySpeed=0.02+Math.random()*0.03;this.swayAngle=Math.random()*Math.PI*2;this.rotation=Math.random()*Math.PI*2;this.rotSpeed=(Math.random()-0.5)*0.12;this.emoji=BILLS[Math.floor(Math.random()*BILLS.length)];this.alpha=0.6+Math.random()*0.25;}
   update(){this.y+=this.speed;this.swayAngle+=this.swaySpeed;this.x+=Math.sin(this.swayAngle)*this.sway;this.rotation+=this.rotSpeed;}
   draw(){mrCtx.save();mrCtx.globalAlpha=this.alpha;mrCtx.translate(this.x,this.y);mrCtx.rotate(this.rotation);mrCtx.font=`${this.size}px serif`;mrCtx.textAlign='center';mrCtx.textBaseline='middle';mrCtx.fillText(this.emoji,0,0);mrCtx.restore();}
   get offscreen(){return this.y>mrH+50;}
 }
 function mrLoop(){
   mrCtx.clearRect(0,0,mrW,mrH);
-  if(mrActive&&mrBills.length<120) mrBills.push(new Bill());
+  if(mrActive&&mrBills.length<60) mrBills.push(new Bill());
   mrBills=mrBills.filter(b=>!b.offscreen);
   mrBills.forEach(b=>{b.update();b.draw();});
   if(mrBills.length>0||mrActive) requestAnimationFrame(mrLoop);
