@@ -406,6 +406,29 @@ function clearCache() {
   location.reload();
 }
 
+// ── MARKET STATUS HELPER ──
+// Returns 'open', 'pre', 'after', or 'closed'
+function getMarketStatus() {
+  const et = new Date(new Date().toLocaleString('en-US', {timeZone:'America/New_York'}));
+  const day = et.getDay(), mins = et.getHours()*60 + et.getMinutes();
+  if(day===0||day===6) return 'closed';
+  if(mins>=570&&mins<960) return 'open';
+  if(mins>=240&&mins<570) return 'pre';
+  if(mins>=960&&mins<1200) return 'after';
+  return 'closed';
+}
+
+// Returns the right source label based on market status
+// During market hours: Finnhub /quote d.c is the live price → LIVE
+// Outside market hours: d.c is the last close → CLOSE
+function getPriceLabel() {
+  const status = getMarketStatus();
+  if(status === 'open') return 'LIVE';
+  if(status === 'pre') return 'PRE';
+  if(status === 'after') return 'AFTER';
+  return 'CLOSE';
+}
+
 // ── CLOCK ──
 function updateClock() {
   const et = new Date(new Date().toLocaleString('en-US', {timeZone:'America/New_York'}));
@@ -548,7 +571,10 @@ function updatePriceCell(sym, price, chgPct, old, srcLabel) {
   if(pEl) pEl.textContent = '$' + price.toFixed(2);
   if(srcEl) {
     srcEl.textContent = srcLabel || 'LIVE';
-    srcEl.className = 'src-tag ' + (srcLabel === 'LIVE' ? 'src-live' : 'src-close');
+    if(srcLabel === 'LIVE') srcEl.className = 'src-tag src-live';
+    else if(srcLabel === 'PRE' || srcLabel === 'AFTER') srcEl.className = 'src-tag src-pre';
+    else if(srcLabel === 'CACHE') srcEl.className = 'src-tag src-cached';
+    else srcEl.className = 'src-tag src-close';
   }
   if(cEl) {
     if(chgPct === null || chgPct === undefined) {
@@ -906,12 +932,12 @@ async function fetchClosingPrices(key) {
         const price = d.c, prevClose = d.pc || d.c;
         const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
         prices[t.s] = { price, prevClose, chgPct };
-        updatePriceCell(t.s, price, chgPct, undefined, 'CLOSE');
+        updatePriceCell(t.s, price, chgPct, undefined, getPriceLabel());
       } catch(e) {}
     }));
     if(i + pBatch < STOCKS.length) await sleep(pDelay);
   }
-  // Retry any still showing — (network blip protection)
+  // Retry any still missing — (network blip protection)
   await sleep(2000);
   const missing = STOCKS.filter(t => !prices[t.s]?.price);
   if(missing.length > 0) {
@@ -926,7 +952,7 @@ async function fetchClosingPrices(key) {
           const price = d.c, prevClose = d.pc || d.c;
           const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
           prices[t.s] = { price, prevClose, chgPct };
-          updatePriceCell(t.s, price, chgPct, undefined, 'CLOSE');
+          updatePriceCell(t.s, price, chgPct, undefined, getPriceLabel());
         } catch(e) {}
       }));
       if(i + 3 < missing.length) await sleep(1000);
