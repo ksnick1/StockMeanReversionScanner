@@ -252,6 +252,7 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
   <div class="hright">
     <div id="clock">--:--:-- --</div>
     <div id="mktBadge" class="market-badge closed">CLOSED</div>
+    <button onclick="clearCache()" style="background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:#f87171;border-radius:7px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;" title="Clear cached prices if Chg% looks wrong">🗑 Clear Cache</button>
   </div>
 </div>
 
@@ -445,6 +446,14 @@ const seen=new Set();
 const STOCKS=TICKERS.filter(t=>{if(seen.has(t.s))return false;seen.add(t.s);return true;});
 
 let prices={}, indics={}, ws=null, filterMode='all', customStocks=[];
+
+function clearCache(){
+  localStorage.removeItem('mr_prices');
+  localStorage.removeItem('mr_indics');
+  localStorage.removeItem('finnhub_key');
+  alert('Cache cleared! The page will now reload fresh.');
+  location.reload();
+}
 
 // ── CLOCK ──
 function updateClock(){
@@ -834,8 +843,10 @@ function restoreData(){
     if(rp){
       const saved=JSON.parse(rp);
       Object.keys(saved).forEach(sym=>{
-        prices[sym]=saved[sym];
         const p=saved[sym];
+        // Skip if chgPct looks insane (>25% is almost certainly a cache bug)
+        if(Math.abs(Number(p.chgPct)||0)>25) return;
+        prices[sym]=saved[sym];
         const pEl=document.getElementById(`p-${sym}`);
         const cEl=document.getElementById(`c-${sym}`);
         const srcEl=document.getElementById(`src-${sym}`);
