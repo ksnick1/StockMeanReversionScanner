@@ -454,7 +454,6 @@ let prices={}, indics={}, ws=null, filterMode='all', customStocks=[];
 function clearCache(){
   localStorage.removeItem('mr_prices');
   localStorage.removeItem('mr_indics');
-  localStorage.removeItem('finnhub_key');
   alert('Cache cleared! The page will now reload fresh.');
   location.reload();
 }
