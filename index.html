@@ -16,6 +16,9 @@
 body{background:var(--bg);color:var(--text);font-family:Tahoma,Geneva,sans-serif;font-size:15px;padding:16px;
   background-image:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(52,211,153,.04) 0%,transparent 70%);}
 
+/* ═══ MONEY RAIN CANVAS ═══ */
+#money-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;}
+
 /* HEADER */
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;
   padding-bottom:14px;border-bottom:2px solid var(--border2);flex-wrap:wrap;gap:10px;}
@@ -233,7 +236,7 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
 @media(max-width:700px){td,th{padding:5px 6px;}.legend-grid{grid-template-columns:1fr 1fr;}}
 </style>
 </head>
-<body>
+<canvas id="money-canvas"></canvas>
 
 <!-- HEADER -->
 <div class="header">
@@ -252,6 +255,7 @@ td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
   <div class="hright">
     <div id="clock">--:--:-- --</div>
     <div id="mktBadge" class="market-badge closed">CLOSED</div>
+    <button onclick="celebrate()" style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.4);border-radius:20px;padding:4px 14px;font-size:14px;cursor:pointer;color:#34d399;font-weight:700;font-family:Tahoma,Geneva,sans-serif;" title="💸 Make it Rain!">💸 Make it Rain!</button>
     <button onclick="clearCache()" style="background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:#f87171;border-radius:7px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;" title="Clear cached prices if Chg% looks wrong">🗑 Clear Cache</button>
   </div>
 </div>
@@ -988,7 +992,45 @@ function calcRSIArr(closes){
 }
 
 // ── AUTO-LOAD ──
-window.addEventListener('load',()=>{
+/* ════ 💸 MONEY RAIN ANIMATION ════ */
+const mrCanvas=document.getElementById('money-canvas');
+const mrCtx=mrCanvas.getContext('2d');
+let mrW,mrH,mrBills=[],mrActive=false,mrTimer=null;
+function mrResize(){mrW=mrCanvas.width=window.innerWidth;mrH=mrCanvas.height=window.innerHeight;}
+mrResize();window.addEventListener('resize',mrResize);
+const BILLS=['💵','💴','💶','💷','💸','💰','🤑','⭐','✨','📈'];
+class Bill{
+  constructor(){this.reset();}
+  reset(){this.x=Math.random()*mrW;this.y=-40;this.size=20+Math.random()*24;this.speed=2+Math.random()*4;this.sway=Math.random()*2-1;this.swaySpeed=0.02+Math.random()*0.03;this.swayAngle=Math.random()*Math.PI*2;this.rotation=Math.random()*Math.PI*2;this.rotSpeed=(Math.random()-0.5)*0.12;this.emoji=BILLS[Math.floor(Math.random()*BILLS.length)];this.alpha=0.85+Math.random()*0.15;}
+  update(){this.y+=this.speed;this.swayAngle+=this.swaySpeed;this.x+=Math.sin(this.swayAngle)*this.sway;this.rotation+=this.rotSpeed;}
+  draw(){mrCtx.save();mrCtx.globalAlpha=this.alpha;mrCtx.translate(this.x,this.y);mrCtx.rotate(this.rotation);mrCtx.font=`${this.size}px serif`;mrCtx.textAlign='center';mrCtx.textBaseline='middle';mrCtx.fillText(this.emoji,0,0);mrCtx.restore();}
+  get offscreen(){return this.y>mrH+50;}
+}
+function mrLoop(){
+  mrCtx.clearRect(0,0,mrW,mrH);
+  if(mrActive&&mrBills.length<120) mrBills.push(new Bill());
+  mrBills=mrBills.filter(b=>!b.offscreen);
+  mrBills.forEach(b=>{b.update();b.draw();});
+  if(mrBills.length>0||mrActive) requestAnimationFrame(mrLoop);
+  else mrCtx.clearRect(0,0,mrW,mrH);
+}
+function celebrate(){
+  mrActive=true;
+  if(mrTimer) clearTimeout(mrTimer);
+  requestAnimationFrame(mrLoop);
+  mrTimer=setTimeout(()=>{mrActive=false;},7000);
+}
+// Auto-celebrate on load + on Strong Buy signal
+window.addEventListener('load',()=>{setTimeout(()=>{celebrate();},800);});
+// Hook into applyIndicators to celebrate when Strong Buy appears
+const _origApply=applyIndicators;
+function applyIndicators(sym,ind,price){
+  const prevScore=document.getElementById(`sc-${sym}`)?.textContent||'';
+  _origApply(sym,ind,price);
+  const newScore=document.getElementById(`sc-${sym}`)?.textContent||'';
+  if(newScore.includes('Strong Buy')&&!prevScore.includes('Strong Buy')){celebrate();}
+}
+
   const baked='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
   const saved=localStorage.getItem('finnhub_key')||baked;
   document.getElementById('apiKey').value=saved;
