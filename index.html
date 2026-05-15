@@ -754,12 +754,13 @@ async function loadIndicators() {
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
   let loaded = 0;
-  const BATCH = 5, DELAY = 800;
+  // ONE fetch per stock does BOTH indicators AND hit rates — halves Yahoo requests
+  // Batch of 4, 600ms delay = 70 stocks in ~11s, well within proxy rate limits
+  const BATCH = 4, DELAY = 600;
   for(let i = 0; i < STOCKS.length; i += BATCH) {
     const batch = STOCKS.slice(i, i + BATCH);
-    // Rotate which proxy leads for each batch to spread load
     const batchProxies = [...PROXIES.slice(i % 4), ...PROXIES.slice(0, i % 4)];
-    await Promise.allSettled(batch.map(t => fetchIndicator(t.s, batchProxies)));
+    await Promise.allSettled(batch.map(t => fetchIndicatorAndStats(t, batchProxies)));
     loaded += batch.length;
     document.getElementById('scanStatus').textContent =
       `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
@@ -829,6 +830,134 @@ async function fetchIndicator(sym, PROXIES) {
     applyIndicators(sym, ind, currentPrice);
   } catch(e) {}
 }
+
+// ══════════════════════════════════════════════════════
+// fetchIndicatorAndStats — ONE Yahoo fetch per stock
+// does BOTH indicators (RSI/BB/MA) AND hit rate stats.
+// Halves total Yahoo requests vs separate calls.
+// ══════════════════════════════════════════════════════
+async function fetchIndicatorAndStats(ticker, PROXIES) {
+  const sym = ticker.s;
+  const hitEl  = document.getElementById(`mrhit-${sym}`);
+  const lsigEl = document.getElementById(`lsig-${sym}`);
+  const row    = document.getElementById(`row-${sym}`);
+
+  for(const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(10000)});
+      if(!r.ok) continue;
+      const d = await r.json();
+      const res = d?.chart?.result?.[0]; if(!res) continue;
+      const q = res.indicators?.quote?.[0];
+      const closes = q?.close, highs = q?.high, lows = q?.low;
+      const timestamps = res.timestamp;
+      if(!closes || closes.length < 21) continue;
+      const valid = closes.filter(v => v != null && !isNaN(v));
+      if(valid.length < 21) continue;
+
+      // ── INDICATORS ──
+      const ind = calcIndicators(valid);
+      indics[sym] = ind;
+      if(!prices[sym]?.price) {
+        const lastClose = valid[valid.length-1];
+        if(lastClose > 0) {
+          prices[sym] = { ...prices[sym], price: lastClose };
+          updatePriceCell(sym, lastClose, prices[sym]?.chgPct || 0, undefined, getPriceLabel());
+        }
+      }
+      applyIndicators(sym, ind, prices[sym]?.price || valid[valid.length-1]);
+
+      // ── HIT RATE STATS ──
+      let buySignals=0, buyHits=0, sellSignals=0, sellHits=0;
+      let lastBuyDays=999, lastSellDays=999, lastBuyType='', lastSellType='';
+      const today = new Date();
+      for(let i=20; i<closes.length-1; i++) {
+        const slice = closes.slice(i-14, i+1).filter(v => v!=null);
+        if(slice.length < 15) continue;
+        const rsi = calcRSIArr(slice);
+        const curr = closes[i];
+        if(!curr) continue;
+        const nextHigh  = highs?.[i+1];
+        const nextLow   = lows?.[i+1];
+        const nextClose = closes[i+1];
+        const bbSlice = closes.slice(Math.max(0,i-19), i+1).filter(v=>v!=null);
+        const mean = bbSlice.reduce((a,b)=>a+b,0)/bbSlice.length;
+        const std = Math.sqrt(bbSlice.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/bbSlice.length);
+        const lower = mean-2*std, upper = mean+2*std;
+        if(rsi < 30 && curr <= lower) {
+          buySignals++;
+          const buyTarget = nextHigh ?? nextClose;
+          if(buyTarget && buyTarget > curr) buyHits++;
+          if(timestamps?.[i]) { const days=Math.floor((today-new Date(timestamps[i]*1000))/864e5); if(days<lastBuyDays){lastBuyDays=days;lastBuyType='Strong Buy';} }
+        }
+        if(rsi > 70 && curr >= upper) {
+          sellSignals++;
+          const sellTarget = nextLow ?? nextClose;
+          if(sellTarget && sellTarget < curr) sellHits++;
+          if(timestamps?.[i]) { const days=Math.floor((today-new Date(timestamps[i]*1000))/864e5); if(days<lastSellDays){lastSellDays=days;lastSellType='Strong Sell';} }
+        }
+      }
+
+      // ── RENDER HIT RATE ──
+      const pctClass = p => p>=70?'high':p>=50?'mid':'low';
+      const barColor = p => p>=70?'#34d399':p>=50?'#fbbf24':'#f87171';
+      const totalSigs = buySignals + sellSignals;
+      if(hitEl) {
+        if(totalSigs===0) {
+          hitEl.innerHTML = `<span class="hit-signals">No signals in past year</span>`;
+        } else {
+          const buyRate  = buySignals  > 0 ? Math.round(buyHits/buySignals*100)   : 0;
+          const sellRate = sellSignals > 0 ? Math.round(sellHits/sellSignals*100) : 0;
+          let html = '';
+          if(buySignals>0)  html+=`<div class="hit-row"><span class="hit-label">Buy</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${buyRate}%;background:${barColor(buyRate)}"></div></div><span class="hit-pct ${pctClass(buyRate)}">${buyRate}%</span></div>`;
+          if(sellSignals>0) html+=`<div class="hit-row"><span class="hit-label">Sell</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${sellRate}%;background:${barColor(sellRate)}"></div></div><span class="hit-pct ${pctClass(sellRate)}">${sellRate}%</span></div>`;
+          html+=`<div class="hit-signals">${totalSigs} signal${totalSigs!==1?'s':''} · ${buySignals}B/${sellSignals}S</div>`;
+          hitEl.innerHTML = html;
+          if(row) row.dataset.hitrate = Math.max(buySignals>0?buyRate:0, sellSignals>0?sellRate:0);
+        }
+      }
+
+      // ── RENDER LAST SIGNAL ──
+      const lastDays = Math.min(lastBuyDays, lastSellDays);
+      const lastType = lastBuyDays<=lastSellDays ? lastBuyType : lastSellType;
+      const lastRate = lastType==='Strong Buy'
+        ? (buySignals>0  ? Math.round(buyHits/buySignals*100)   : 0)
+        : (sellSignals>0 ? Math.round(sellHits/sellSignals*100) : 0);
+      if(lsigEl) {
+        if(lastDays===999) {
+          lsigEl.innerHTML = `<span class="ls-days old">No signals</span>`;
+        } else {
+          const daysClass = lastDays<=7?'recent':lastDays<=30?'moderate':'old';
+          const rateClass = lastRate>=70?'high':lastRate>=50?'mid':'low';
+          lsigEl.innerHTML = `<span class="ls-days ${daysClass}">${lastDays===0?'Today':lastDays===1?'Yesterday':lastDays+' days ago'}</span><span class="ls-type">${lastType}</span><span class="ls-rate ${rateClass}">${lastRate}% hit rate</span>`;
+        }
+      }
+      if(row) row.dataset.lastsignal = lastDays;
+      saveIndics();
+      return; // success — stop trying proxies
+    } catch(e) {}
+  }
+
+  // Fallback: Finnhub candles (no CORS) — indicators only, no hit rate highs/lows
+  try {
+    const key = document.getElementById('apiKey').value.trim();
+    if(!key) return;
+    const to=Math.floor(Date.now()/1000), from=to-(365*24*60*60);
+    const d=await(await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`,{signal:AbortSignal.timeout(8000)})).json();
+    if(d.s!=='ok'||!d.c||d.c.length<21) return;
+    const valid=d.c.filter(v=>v!=null&&!isNaN(v));
+    if(valid.length<21) return;
+    const ind=calcIndicators(valid);
+    indics[sym]=ind;
+    if(!prices[sym]?.price){const lc=valid[valid.length-1];if(lc>0){prices[sym]={...prices[sym],price:lc};updatePriceCell(sym,lc,prices[sym]?.chgPct||0,undefined,getPriceLabel());}}
+    applyIndicators(sym,ind,prices[sym]?.price||valid[valid.length-1]);
+    // Basic hit rate from closes only (no highs/lows in candle fallback)
+    if(hitEl) hitEl.innerHTML=`<span class="hit-signals" style="color:var(--muted)">Partial data</span>`;
+    if(lsigEl) lsigEl.innerHTML=`<span class="ls-days old">—</span>`;
+    saveIndics();
+  } catch(e) {}
+}
+
 
 function calcIndicators(closes) {
   const last = closes[closes.length-1];
@@ -1098,19 +1227,8 @@ function saveIndics() { try { localStorage.setItem('mr_indics', JSON.stringify(i
 
 // ── HISTORICAL HIT RATE + LAST SIGNAL ──
 async function loadAllMRStats() {
-  const PROXIES = [
-    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
-    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
-    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
-    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
-  ];
-  const BATCH = 5, DELAY = 800;
-  for(let i = 0; i < STOCKS.length; i += BATCH) {
-    const batch = STOCKS.slice(i, i + BATCH);
-    const batchProxies = [...PROXIES.slice(i % 4), ...PROXIES.slice(0, i % 4)];
-    await Promise.allSettled(batch.map(t => calcMRStats(t, batchProxies)));
-    if(i + BATCH < STOCKS.length) await new Promise(r => setTimeout(r, DELAY));
-  }
+  // Hit rates now calculated inside fetchIndicatorAndStats — no separate pass needed
+  // Kept for compatibility with startScan() call
 }
 
 
@@ -1125,94 +1243,6 @@ function calcRSIArr(closes) {
   const avgG = gains / period, avgL = losses / period;
   if(avgL === 0) return 100;
   return 100 - (100 / (1 + avgG / avgL));
-}
-
-async function calcMRStats(ticker, PROXIES) {
-  const hitEl = document.getElementById(`mrhit-${ticker.s}`);
-  const lsigEl = document.getElementById(`lsig-${ticker.s}`);
-  const row = document.getElementById(`row-${ticker.s}`);
-  for(const proxy of PROXIES) {
-    try {
-      const r = await fetch(proxy(ticker.s), {signal: AbortSignal.timeout(8000)});
-      if(!r.ok) continue;
-      const d = await r.json();
-      const res = d?.chart?.result?.[0]; if(!res) continue;
-      const quotes = res.indicators?.quote?.[0];
-      const closes = quotes?.close, highs = quotes?.high, lows = quotes?.low, timestamps = res.timestamp;
-      if(!closes || closes.length < 21) continue;
-      let buySignals = 0, buyHits = 0;
-      let sellSignals = 0, sellHits = 0;
-      let lastBuyDays = 999, lastSellDays = 999;
-      let lastBuyType = '', lastSellType = '';
-      const today = new Date();
-      for(let i = 20; i < closes.length - 1; i++) {
-        const slice = closes.slice(i - 14, i + 1).filter(v => v != null);
-        if(slice.length < 15) continue;
-        const rsi = calcRSIArr(slice);
-        const curr = closes[i];
-        // Buy: measure next-day HIGH (strategy exits at intraday high)
-        // Sell: measure next-day LOW (puts profit when stock drops intraday)
-        const nextHigh = highs?.[i+1];
-        const nextLow  = lows?.[i+1];
-        // Fallback to next close if high/low unavailable
-        const nextClose = closes[i+1];
-        if(!curr) continue;
-        const bbSlice = closes.slice(Math.max(0, i-19), i+1).filter(v => v != null);
-        const mean = bbSlice.reduce((a,b) => a+b, 0) / bbSlice.length;
-        const std = Math.sqrt(bbSlice.map(v => (v-mean)**2).reduce((a,b) => a+b, 0) / bbSlice.length);
-        const lower = mean - 2*std, upper = mean + 2*std;
-        if(rsi < 30 && curr <= lower) {
-          buySignals++;
-          // Hit = next-day HIGH exceeded signal close (long bounced into profit)
-          const buyTarget = nextHigh ?? nextClose;
-          if(buyTarget && buyTarget > curr) buyHits++;
-          if(timestamps && timestamps[i]) { const days = Math.floor((today - new Date(timestamps[i]*1000)) / 864e5); if(days < lastBuyDays) { lastBuyDays = days; lastBuyType = 'Strong Buy'; } }
-        }
-        if(rsi > 70 && curr >= upper) {
-          sellSignals++;
-          // Hit = next-day LOW dropped below signal close (puts went into profit)
-          const sellTarget = nextLow ?? nextClose;
-          if(sellTarget && sellTarget < curr) sellHits++;
-          if(timestamps && timestamps[i]) { const days = Math.floor((today - new Date(timestamps[i]*1000)) / 864e5); if(days < lastSellDays) { lastSellDays = days; lastSellType = 'Strong Sell'; } }
-        }
-      }
-      const pctClass = p => p >= 70 ? 'high' : p >= 50 ? 'mid' : 'low';
-      const barColor = p => p >= 70 ? '#34d399' : p >= 50 ? '#fbbf24' : '#f87171';
-      const totalSigs = buySignals + sellSignals;
-      if(hitEl) {
-        if(totalSigs === 0) {
-          hitEl.innerHTML = `<span class="hit-signals">No signals in past year</span>`;
-        } else {
-          const buyRate = buySignals > 0 ? Math.round(buyHits / buySignals * 100) : 0;
-          const sellRate = sellSignals > 0 ? Math.round(sellHits / sellSignals * 100) : 0;
-          let html = '';
-          if(buySignals > 0) html += `<div class="hit-row"><span class="hit-label">Buy</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${buyRate}%;background:${barColor(buyRate)}"></div></div><span class="hit-pct ${pctClass(buyRate)}">${buyRate}%</span></div>`;
-          if(sellSignals > 0) html += `<div class="hit-row"><span class="hit-label">Sell</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${sellRate}%;background:${barColor(sellRate)}"></div></div><span class="hit-pct ${pctClass(sellRate)}">${sellRate}%</span></div>`;
-          html += `<div class="hit-signals">${totalSigs} signal${totalSigs!==1?'s':''} · ${buySignals}B/${sellSignals}S</div>`;
-          hitEl.innerHTML = html;
-          const bestRate = Math.max(buySignals > 0 ? buyRate : 0, sellSignals > 0 ? sellRate : 0);
-          if(row) row.dataset.hitrate = bestRate;
-        }
-      }
-      const lastDays = Math.min(lastBuyDays, lastSellDays);
-      const lastType = lastBuyDays <= lastSellDays ? lastBuyType : lastSellType;
-      const lastRate = lastType === 'Strong Buy' ? (buySignals > 0 ? Math.round(buyHits/buySignals*100) : 0) : (sellSignals > 0 ? Math.round(sellHits/sellSignals*100) : 0);
-      if(lsigEl) {
-        if(lastDays === 999) {
-          lsigEl.innerHTML = `<span class="ls-days old">No signals</span>`;
-        } else {
-          const daysClass = lastDays <= 7 ? 'recent' : lastDays <= 30 ? 'moderate' : 'old';
-          const rateClass = lastRate >= 70 ? 'high' : lastRate >= 50 ? 'mid' : 'low';
-          lsigEl.innerHTML = `<span class="ls-days ${daysClass}">${lastDays === 0 ? 'Today' : lastDays === 1 ? 'Yesterday' : lastDays + ' days ago'}</span><span class="ls-type">${lastType}</span><span class="ls-rate ${rateClass}">${lastRate}% hit rate</span>`;
-        }
-      }
-      if(row) row.dataset.lastsignal = lastDays;
-      return;
-    } catch(e) {}
-  }
-  // If all proxies fail, show graceful fallback
-  if(hitEl) hitEl.innerHTML = `<span class="hit-signals" style="color:var(--muted)">Data unavailable</span>`;
-  if(lsigEl) lsigEl.innerHTML = `<span class="ls-days old">—</span>`;
 }
 
 // ── MONEY RAIN ──
