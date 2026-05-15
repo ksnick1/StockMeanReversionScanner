@@ -624,25 +624,45 @@ async function fetchAllPrices(key) {
     }));
     if(i + BATCH < STOCKS.length) await sleep(DELAY);
   }
-  // Retry pass — catch any that got rate-limited on first pass
+  // Retry pass — for any still missing, try Finnhub candle last close
+  // Candle API returns adjusted prices (unlike /quote which can be split-unadjusted)
   await sleep(1000);
   const missing = STOCKS.filter(t => !prices[t.s]?.price);
   if(missing.length > 0) {
     for(let i = 0; i < missing.length; i += 3) {
       await Promise.allSettled(missing.slice(i, i+3).map(async t => {
         try {
+          // First try /quote again
           const r = await fetch(
             `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.s)}&token=${key}`,
             {signal: AbortSignal.timeout(7000)}
           );
-          if(!r.ok) return;
+          if(!r.ok) throw new Error('quote failed');
           const d = await r.json();
           const pc = d.pc || 0, cp = d.c || 0;
-          if(pc <= 0 || cp <= 0) return;
-          const chgPct = (cp - pc) / pc * 100;
-          if(Math.abs(chgPct) > 25) { prices[t.s] = { ...prices[t.s], prevClose: pc }; return; }
-          prices[t.s] = { price: cp, prevClose: pc, chgPct };
-          updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
+          if(pc > 0 && cp > 0) {
+            const chgPct = (cp - pc) / pc * 100;
+            if(Math.abs(chgPct) <= 25) {
+              prices[t.s] = { price: cp, prevClose: pc, chgPct };
+              updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
+              return;
+            }
+          }
+          // /quote price looks bad — use candle last close instead (split-adjusted)
+          const to = Math.floor(Date.now()/1000), from = to - (10*24*60*60);
+          const rc = await fetch(
+            `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(t.s)}&resolution=D&from=${from}&to=${to}&token=${key}`,
+            {signal: AbortSignal.timeout(7000)}
+          );
+          const dc = await rc.json();
+          if(dc.s !== 'ok' || !dc.c?.length) return;
+          const price = dc.c[dc.c.length-1];
+          const prevClose = dc.c.length > 1 ? dc.c[dc.c.length-2] : (pc || price);
+          if(!price || price <= 0) return;
+          const chgPct = prevClose > 0 ? (price - prevClose) / prevClose * 100 : 0;
+          if(Math.abs(chgPct) > 25) return;
+          prices[t.s] = { price, prevClose, chgPct };
+          updatePriceCell(t.s, price, chgPct, undefined, getPriceLabel());
         } catch(e) {}
       }));
       if(i + 3 < missing.length) await sleep(600);
