@@ -1,1 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mean Reversion Scanner</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+--bg:#06060f;--bg2:#0d0d1a;--bg3:#12122a;
+--border:#1e1e35;--border2:#252840;
+--text:#e2e2f0;--muted:#a0a0c0;--muted2:#8080aa;
+--green:#34d399;--red:#f87171;--yellow:#fbbf24;--blue:#60a5fa;
+--purple:#a78bfa;--purple-dim:rgba(167,139,250,.12);
+}
+body{background:var(--bg);color:var(--text);font-family:Tahoma,Geneva,sans-serif;font-size:15px;padding:16px;
+background-image:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(52,211,153,.04) 0%,transparent 70%);}
+#money-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:0.85;}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;
+padding-bottom:14px;border-bottom:2px solid var(--border2);flex-wrap:wrap;gap:10px;}
+.brand-wrap{display:flex;align-items:center;gap:10px;}
+.brand-name{font-size:18px;font-weight:700;color:var(--text);}
+.brand-sub{font-size:13px;color:var(--muted);margin-top:2px;font-weight:600;}
+.hright{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+#clock{font-size:15px;font-weight:700;}
+.market-badge{font-size:13px;font-weight:700;letter-spacing:.05em;padding:4px 10px;
+border-radius:5px;text-transform:uppercase;}
+.market-badge.open{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3);}
+.market-badge.closed{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.25);}
+.market-badge.pre{background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.3);}
+@keyframes coinSpin{0%,100%{transform:scaleX(1);}45%{transform:scaleX(0.08);}50%{transform:scaleX(0.08);}55%{transform:scaleX(1);}}
+@keyframes coinGlow{0%,100%{filter:drop-shadow(0 0 4px rgba(245,200,66,.5));}50%{filter:drop-shadow(0 0 12px rgba(245,200,66,.9));}}
+@keyframes sparkleFloat{0%,100%{opacity:0;transform:translateY(0) scale(0.8);}50%{opacity:1;transform:translateY(-6px) scale(1.2);}}
+.coin-wrap{width:42px;height:42px;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;}
+.coin{width:36px;height:36px;background:linear-gradient(135deg,#f5c842,#d4a017);border-radius:50%;
+display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#7a5c00;
+box-shadow:0 0 14px rgba(245,200,66,.5),inset 0 2px 4px rgba(255,255,255,.3);
+animation:coinSpin 2.4s ease-in-out infinite,coinGlow 2.4s ease-in-out infinite;}
+.coin-sparkle{position:absolute;font-size:10px;animation:sparkleFloat 1.8s ease-in-out infinite;}
+.coin-sparkle:nth-child(2){top:-4px;right:-2px;animation-delay:0s;}
+.coin-sparkle:nth-child(3){bottom:-2px;left:-4px;animation-delay:0.6s;}
+.coin-sparkle:nth-child(4){top:2px;left:-6px;animation-delay:1.2s;}
+.api-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.api-row label{font-size:15px;color:var(--muted);font-weight:700;}
+.api-row input{background:var(--bg3);border:1px solid var(--border2);color:var(--text);
+border-radius:6px;padding:5px 10px;font-size:15px;font-family:Tahoma,Geneva,sans-serif;width:270px;}
+.api-row input:focus{outline:1px solid var(--purple);border-color:var(--purple);}
+.btn-scan{background:var(--green);color:#06060f;border:none;border-radius:6px;
+padding:6px 18px;font-size:16px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-scan:hover{background:#5bf5b5;}
+.scan-status{font-size:14px;color:var(--muted);min-width:180px;}
+.scan-status.ok{color:var(--green);}
+.source-note{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:13px;color:var(--muted);}
+.src-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:5px;
+border:1px solid var(--border2);background:var(--bg2);}
+.src-pill .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.legend-wrap{background:var(--bg2);border:1px solid var(--border2);border-radius:10px;
+padding:12px 16px;margin-bottom:14px;}
+.legend-title{font-size:13px;font-weight:700;color:var(--muted);margin-bottom:10px;
+text-transform:uppercase;letter-spacing:.06em;}
+.legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;}
+.legend-card{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:8px 12px;}
+.legend-card .lc-head{font-size:14px;font-weight:700;margin-bottom:3px;}
+.legend-card .lc-body{font-size:13px;color:var(--muted);}
+.lc-buy{color:var(--green);} .lc-sell{color:var(--red);} .lc-bb{color:var(--blue);}
+.lc-ma{color:var(--yellow);} .lc-sbuy{color:var(--green);} .lc-ssell{color:var(--red);}
+.search-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.search-wrap{position:relative;flex:1;min-width:220px;max-width:380px;}
+.search-input{width:100%;background:var(--bg2);border:1px solid var(--border2);color:var(--text);
+border-radius:8px;padding:7px 14px 7px 36px;font-size:15px;font-family:Tahoma,Geneva,sans-serif;transition:border-color .2s;}
+.search-input:focus{outline:none;border-color:var(--green);}
+.search-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;pointer-events:none;}
+.search-clear{position:absolute;right:10px;top:50%;transform:translateY(-50%);
+background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;display:none;padding:0;}
+.search-clear:hover{color:var(--text);}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:#0d0d1a;border:1px solid var(--green);border-radius:14px;padding:24px;max-width:640px;width:100%;box-shadow:0 0 40px rgba(52,211,153,.2);}
+.modal-title{font-size:17px;font-weight:700;color:var(--green);margin-bottom:6px;}
+.modal-sub{font-size:14px;color:var(--muted);margin-bottom:14px;line-height:1.5;}
+.modal-steps{font-size:14px;color:var(--muted);margin-bottom:14px;line-height:1.8;}
+.modal-steps strong{color:var(--text);}
+.modal-code{background:#06060f;border:1px solid var(--border2);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;color:var(--green);white-space:pre-wrap;word-break:break-all;max-height:180px;overflow-y:auto;margin-bottom:12px;}
+.modal-btns{display:flex;gap:8px;flex-wrap:wrap;}
+.btn-copy{background:var(--green);color:#06060f;border:none;border-radius:6px;padding:8px 20px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-copy:hover{background:#5bf5b5;}
+.btn-copy.copied{background:#60a5fa;color:#fff;}
+.btn-close-modal{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:8px 16px;font-size:15px;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-close-modal:hover{color:var(--text);}
+.add-panel{background:var(--bg2);border:1px solid var(--green);border-radius:10px;
+padding:14px 18px;margin-bottom:12px;display:none;align-items:center;gap:10px;flex-wrap:wrap;}
+.add-panel-msg{font-size:15px;color:var(--muted);}
+.add-panel-sym{font-size:16px;font-weight:700;color:var(--green);}
+.btn-add{background:var(--green);color:#06060f;border:none;border-radius:6px;padding:6px 18px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-add:hover{background:#5bf5b5;}
+.btn-save-perm{background:rgba(96,165,250,.15);border:1px solid rgba(96,165,250,.4);color:#60a5fa;border-radius:6px;padding:6px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-save-perm:hover{background:rgba(96,165,250,.25);}
+.btn-cancel{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:6px 14px;font-size:15px;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-cancel:hover{color:var(--text);border-color:var(--muted);}
+.custom-tag{font-size:12px;color:var(--blue);background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);border-radius:3px;padding:1px 5px;margin-left:4px;}
+.found-panel{background:var(--bg2);border:1px solid var(--blue);border-radius:10px;padding:14px 18px;margin-bottom:12px;display:none;align-items:center;gap:10px;flex-wrap:wrap;}
+.found-panel-msg{font-size:15px;color:var(--muted);}
+.found-panel-sym{font-size:16px;font-weight:700;color:var(--blue);}
+.btn-remove{background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:var(--red);border-radius:6px;padding:6px 16px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-remove:hover{background:rgba(248,113,113,.28);}
+.confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1001;display:none;align-items:center;justify-content:center;padding:16px;}
+.confirm-overlay.open{display:flex;}
+.confirm-box{background:#0d0d1a;border:1px solid var(--red);border-radius:14px;padding:24px;max-width:480px;width:100%;box-shadow:0 0 40px rgba(248,113,113,.2);}
+.confirm-title{font-size:17px;font-weight:700;color:var(--red);margin-bottom:8px;}
+.confirm-msg{font-size:15px;color:var(--muted);margin-bottom:6px;line-height:1.5;}
+.confirm-sym{font-size:16px;font-weight:700;color:var(--text);}
+.confirm-note{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+.confirm-btns{display:flex;gap:10px;flex-wrap:wrap;}
+.btn-confirm-remove{background:var(--red);color:#fff;border:none;border-radius:6px;padding:8px 22px;font-size:15px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-confirm-remove:hover{background:#f55;}
+.btn-confirm-cancel{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:6px;padding:8px 16px;font-size:15px;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;}
+.btn-confirm-cancel:hover{color:var(--text);}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+.filter-btn{background:var(--bg2);border:1px solid var(--border2);color:var(--muted);
+border-radius:7px;padding:5px 13px;font-size:14px;cursor:pointer;
+font-family:Tahoma,Geneva,sans-serif;transition:all .2s;font-weight:600;}
+.filter-btn:hover{background:rgba(52,211,153,.1);border-color:var(--green);color:var(--green);}
+.filter-btn.active{background:rgba(52,211,153,.15);border-color:var(--green);color:var(--green);font-weight:700;box-shadow:0 0 10px rgba(52,211,153,.2);}
+.filter-cnt{font-size:13px;font-weight:700;background:rgba(52,211,153,.15);border-radius:4px;padding:1px 7px;margin-left:4px;color:var(--green);}
+.hit-wrap{display:flex;flex-direction:column;gap:3px;min-width:130px;}
+.hit-row{display:flex;align-items:center;gap:5px;font-size:13px;}
+.hit-label{color:var(--muted);font-size:12px;width:32px;flex-shrink:0;font-weight:600;}
+.hit-bar-bg{flex:1;height:5px;background:var(--border2);border-radius:3px;}
+.hit-bar-fill{height:5px;border-radius:3px;transition:width .6s;}
+.hit-pct{font-size:13px;font-weight:700;min-width:30px;text-align:right;}
+.hit-pct.high{color:var(--green);} .hit-pct.mid{color:var(--yellow);} .hit-pct.low{color:var(--red);}
+.hit-signals{font-size:12px;color:var(--muted);margin-top:1px;font-weight:600;}
+.hit-loading{font-size:12px;color:var(--muted);font-style:italic;}
+.last-signal{display:flex;flex-direction:column;gap:2px;min-width:110px;}
+.ls-days{font-size:14px;font-weight:700;}
+.ls-days.recent{color:var(--green);} .ls-days.moderate{color:var(--yellow);} .ls-days.old{color:var(--muted);}
+.ls-type{font-size:12px;color:var(--muted);font-weight:600;}
+.ls-rate{font-size:12px;font-weight:700;}
+.ls-rate.high{color:var(--green);} .ls-rate.mid{color:var(--yellow);} .ls-rate.low{color:var(--red);}
+table{width:100%;border-collapse:collapse;}
+thead th{background:var(--bg2);color:var(--muted);font-size:13px;font-weight:700;
+text-transform:uppercase;letter-spacing:.06em;padding:8px 10px;text-align:left;
+border-bottom:1px solid var(--border2);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s;}
+thead th:hover{color:var(--green);}
+thead th.sort-asc::after{content:' ▲';font-size:11px;color:var(--green);}
+thead th.sort-desc::after{content:' ▼';font-size:11px;color:var(--green);}
+thead th.sort-asc,thead th.sort-desc{color:var(--green);}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+tbody tr:hover{background:var(--bg2);}
+td{padding:7px 10px;vertical-align:middle;white-space:nowrap;}
+.sym-wrap{display:flex;align-items:center;gap:7px;}
+.sym{font-size:15px;font-weight:700;color:var(--text);text-decoration:none;}
+.sym:hover{color:var(--purple);}
+.caution-tag{font-size:12px;color:var(--yellow);background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);border-radius:3px;padding:1px 5px;font-weight:700;}
+.chart-btn{font-size:13px;color:var(--muted);background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;text-decoration:none;transition:all .15s;}
+.chart-btn:hover{color:var(--purple);border-color:var(--purple);background:var(--bg2);}
+.price{font-size:15px;font-weight:700;}
+.src-tag{font-size:12px;padding:1px 5px;border-radius:3px;margin-left:4px;font-weight:700;}
+.src-live{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.25);}
+.src-close{background:rgba(122,122,154,.1);color:var(--muted);border:1px solid rgba(122,122,154,.2);}
+.src-cached{background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.25);}
+.chg.pos{color:var(--green);} .chg.neg{color:var(--red);} .chg.neu{color:var(--muted);}
+.rsi-wrap{display:flex;flex-direction:column;gap:2px;}
+.rsi-val{font-size:16px;font-weight:700;}
+.rsi-val.oversold{color:var(--green);} .rsi-val.overbought{color:var(--red);} .rsi-val.neutral{color:var(--muted);}
+.rsi-bar-bg{width:50px;height:5px;background:var(--border2);border-radius:2px;}
+.rsi-bar-fill{height:5px;border-radius:2px;transition:width .4s;}
+.bb-pill{font-size:14px;font-weight:700;padding:2px 8px;border-radius:5px;}
+.bb-lower{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3);}
+.bb-upper{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.25);}
+.bb-mid{background:rgba(122,122,154,.1);color:var(--muted);border:1px solid rgba(122,122,154,.2);}
+.ma-pill{font-size:14px;font-weight:700;padding:2px 8px;border-radius:5px;}
+.ma-above{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3);}
+.ma-below{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.25);}
+.score-pill{font-size:14px;font-weight:700;padding:3px 10px;border-radius:6px;}
+.score-sbuy{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.4);}
+.score-buy{background:rgba(52,211,153,.08);color:#52d9a4;border:1px solid rgba(52,211,153,.2);}
+.score-neutral{background:rgba(122,122,154,.1);color:var(--muted);border:1px solid rgba(122,122,154,.2);}
+.score-sell{background:rgba(248,113,113,.08);color:#f5a0a0;border:1px solid rgba(248,113,113,.2);}
+.score-ssell{background:rgba(248,113,113,.15);color:var(--red);border:1px solid rgba(248,113,113,.4);}
+.play-pill{font-size:14px;font-weight:700;padding:2px 9px;border-radius:5px;}
+.play-calls{background:rgba(52,211,153,.12);color:var(--green);border:1px solid rgba(52,211,153,.3);}
+.play-puts{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.25);}
+.play-wait{background:rgba(122,122,154,.1);color:var(--muted);border:1px solid rgba(122,122,154,.2);}
+.loading-row td{text-align:center;padding:40px;color:var(--muted);font-size:16px;}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border2);
+border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes fg{0%{background:rgba(52,211,153,.2);}100%{background:transparent;}}
+@keyframes fr{0%{background:rgba(248,113,113,.2);}100%{background:transparent;}}
+.fg{animation:fg .7s ease-out;} .fr{animation:fr .7s ease-out;}
+@media(max-width:700px){td,th{padding:5px 6px;}.legend-grid{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+
+<canvas id="money-canvas"></canvas>
+
+<div class="header">
+  <div class="brand-wrap">
+    <div class="coin-wrap">
+      <span class="coin-sparkle">✨</span>
+      <span class="coin-sparkle">💰</span>
+      <span class="coin-sparkle">⭐</span>
+      <div class="coin">$</div>
+    </div>
+    <div>
+      <div class="brand-name">Mean Reversion Scanner</div>
+      <div class="brand-sub">RSI · Bollinger Bands · 200-Day MA</div>
+    </div>
+  </div>
+  <div class="hright">
+    <div id="clock">--:--:-- --</div>
+    <div id="mktBadge" class="market-badge closed">CLOSED</div>
+    <button onclick="celebrate()" style="background:rgba(52,211,153,.15);border:1px solid rgba(52,211,153,.4);border-radius:20px;padding:4px 14px;font-size:14px;cursor:pointer;color:#34d399;font-weight:700;font-family:Tahoma,Geneva,sans-serif;">💸 Make it Rain!</button>
+    <button onclick="exportCSV()" style="background:rgba(96,165,250,.15);border:1px solid rgba(96,165,250,.4);color:#60a5fa;border-radius:7px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;" title="Export visible rows to CSV">⬇ CSV</button>
+    <button onclick="clearCache()" style="background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);color:#f87171;border-radius:7px;padding:4px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:Tahoma,Geneva,sans-serif;">🗑 Clear Cache</button>
+  </div>
+</div>
+
+<div class="api-row">
+  <label>FINNHUB API KEY:</label>
+  <input id="apiKey" type="password" placeholder="Paste your Finnhub API key…">
+  <button class="btn-scan" onclick="startScan()">▶ SCAN</button>
+  <span class="scan-status" id="scanStatus">Enter key and click SCAN</span>
+</div>
+
+<div class="source-note">
+  <span class="src-pill"><span class="dot" style="background:var(--green)"></span> Price &amp; Chg% — Finnhub Real-Time</span>
+  <span class="src-pill"><span class="dot" style="background:var(--yellow)"></span> Cached — Last Known Price (restores instantly on load)</span>
+  <span class="src-pill"><span class="dot" style="background:var(--blue)"></span> RSI · BB · 200MA — Yahoo Finance Daily</span>
+</div>
+
+<div class="legend-wrap">
+  <div class="legend-title">📊 Mean Reversion Scanner — Signal Criteria</div>
+  <div class="legend-grid">
+    <div class="legend-card"><div class="lc-head lc-buy">RSI Oversold</div><div class="lc-body">Below 30 → Buy Calls</div></div>
+    <div class="legend-card"><div class="lc-head lc-sell">RSI Overbought</div><div class="lc-body">Above 70 → Buy Puts</div></div>
+    <div class="legend-card"><div class="lc-head lc-bb">Bollinger Band</div><div class="lc-body">Lower Band → Bounce Expected</div></div>
+    <div class="legend-card"><div class="lc-head lc-ma">200-Day MA</div><div class="lc-body">Above = Uptrend · Below = Caution</div></div>
+    <div class="legend-card"><div class="lc-head lc-sbuy">Strong Buy</div><div class="lc-body">RSI &lt;30 + Lower BB + Above 200MA</div></div>
+    <div class="legend-card"><div class="lc-head lc-ssell">Strong Sell</div><div class="lc-body">RSI &gt;70 + Upper BB</div></div>
+    <div class="legend-card"><div class="lc-head" style="color:var(--blue)">Price Source</div><div class="lc-body">Finnhub · Real-Time</div></div>
+    <div class="legend-card"><div class="lc-head" style="color:var(--blue)">Indicators</div><div class="lc-body">Yahoo Finance · Daily</div></div>
+  </div>
+  <div style="margin-top:10px;font-size:14px;color:var(--muted);">
+    <strong style="color:var(--green)">STRONG BUY</strong> RSI &lt;30 · Lower BB · Above 200MA &nbsp;|&nbsp;
+    <strong style="color:var(--red)">STRONG SELL</strong> RSI &gt;70 · Upper BB &nbsp;|&nbsp;
+    <span style="color:var(--yellow)">⚠️ = Higher Volatility — Smaller Position Size</span> &nbsp;|&nbsp;
+    200MA Above = Uptrend Confirmed
+  </div>
+</div>
+
+<div class="search-bar">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" id="searchInput" type="text" placeholder="Search ticker… (e.g. AAPL, TSLA)" autocomplete="off" oninput="handleSearch(this.value)" onkeydown="searchKeydown(event)">
+    <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+  </div>
+  <span style="font-size:13px;color:var(--muted);font-weight:600;">Search existing stocks or type a new ticker to add it</span>
+</div>
+
+<div class="add-panel" id="addPanel">
+  <span class="add-panel-msg">📊 <span class="add-panel-sym" id="addSym"></span> is not on the scanner —</span>
+  <button class="btn-add" id="btnAdd" onclick="addCustomStock()">+ Add for This Session</button>
+  <button class="btn-save-perm" id="btnSavePerm" onclick="showSavePermanently()">💾 Save Permanently</button>
+  <button class="btn-cancel" onclick="clearSearch()">Cancel</button>
+</div>
+
+<div class="found-panel" id="foundPanel">
+  <span class="found-panel-msg">Found: <span class="found-panel-sym" id="foundSym"></span> is already on the scanner —</span>
+  <button class="btn-save-perm" onclick="showSavePermanentlyFound()">💾 Save Permanently</button>
+  <button class="btn-remove" onclick="showConfirmRemove()">🗑 Remove from Scanner</button>
+  <button class="btn-cancel" onclick="clearSearch()">Cancel</button>
+</div>
+
+<div class="confirm-overlay" id="confirmModal" onclick="if(event.target===this)closeConfirm()">
+  <div class="confirm-box">
+    <div class="confirm-title">🗑 Remove Stock?</div>
+    <div class="confirm-msg">Are you sure you want to remove <span class="confirm-sym" id="confirmSym"></span>?</div>
+    <div class="confirm-note">This only removes it for this session. To remove permanently from GitHub, find and delete the line from the TICKERS array in index.html.</div>
+    <div class="confirm-btns">
+      <button class="btn-confirm-remove" onclick="confirmRemove()">Yes, Remove It</button>
+      <button class="btn-confirm-cancel" onclick="closeConfirm()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="saveModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title">💾 Save Permanently to Scanner</div>
+    <div class="modal-sub">Copy the line below, then paste it into the <strong>TICKERS</strong> list in your GitHub file.</div>
+    <div class="modal-code" id="modalCode"></div>
+    <div class="modal-steps">
+      <strong>Steps:</strong><br>
+      1. Click <strong>Copy Code</strong> below<br>
+      2. Go to <strong>github.com/ksnick1/StockMeanReversionScanner</strong><br>
+      3. Click <strong>index.html</strong> → pencil ✏️ → Edit in place<br>
+      4. Press <strong>Ctrl+F</strong> and search for <strong>// Large Cap Tech</strong><br>
+      5. Paste the copied line on a new line right below it<br>
+      6. Click <strong>Commit changes</strong> → wait 2 minutes → refresh!
+    </div>
+    <div class="modal-btns">
+      <button class="btn-copy" id="btnCopyCode" onclick="copyModalCode()">📋 Copy Code</button>
+      <button class="btn-close-modal" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="setFilter('all',this)">All <span class="filter-cnt" id="cnt-all">0</span></button>
+  <button class="filter-btn" onclick="setFilter('strong',this)">⚡ Strong Signals <span class="filter-cnt" id="cnt-strong">0</span></button>
+  <button class="filter-btn" onclick="setFilter('sbuy',this)">⚡ Strong Buy <span class="filter-cnt" id="cnt-sbuy">0</span></button>
+  <button class="filter-btn" onclick="setFilter('ssell',this)">⚡ Strong Sell <span class="filter-cnt" id="cnt-ssell">0</span></button>
+  <button class="filter-btn" onclick="setFilter('caution',this)">⚠️ Caution <span class="filter-cnt" id="cnt-caution">0</span></button>
+  <button class="filter-btn" onclick="setFilter('etf',this)">ETFs Only <span class="filter-cnt" id="cnt-etf">0</span></button>
+  <button class="filter-btn" onclick="setFilter('defensive',this)">Defensive <span class="filter-cnt" id="cnt-defensive">0</span></button>
+</div>
+
+<div class="tbl-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th data-col="sym" onclick="sortBy('sym')">Symbol</th>
+        <th data-col="price" onclick="sortBy('price')">Price 🟢 Live</th>
+        <th data-col="chg" onclick="sortBy('chg')">Chg % 🟢 Live</th>
+        <th data-col="rsi" onclick="sortBy('rsi')">RSI (14)</th>
+        <th data-col="bb" onclick="sortBy('bb')">Bollinger Band</th>
+        <th data-col="ma" onclick="sortBy('ma')">vs 200-Day MA</th>
+        <th data-col="score" onclick="sortBy('score')">Score</th>
+        <th data-col="play" onclick="sortBy('play')">Play</th>
+        <th data-col="hitrate" onclick="sortBy('hitrate')" title="Buy: next-day HIGH > signal close · Sell: next-day LOW < signal close">Hit Rate (1yr) ↑High/↓Low</th>
+        <th data-col="lastSignal" onclick="sortBy('lastSignal')">Last Signal</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr class="loading-row"><td colspan="10"><span class="spinner"></span> Loading cached prices… enter your Finnhub key and click SCAN for live data</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--muted);">
+  <span style="color:var(--green);font-weight:700">Strong Buy</span>
+  <span style="color:#52d9a4;font-weight:700">Buy</span>
+  <span style="color:var(--muted);font-weight:700">Neutral</span>
+  <span style="color:#f5a0a0;font-weight:700">Sell</span>
+  <span style="color:var(--red);font-weight:700">Strong Sell</span>
+  <span style="color:var(--yellow)">⚠️ = Higher Volatility</span>
+  <span>Price: Finnhub real-time (30s) · Indicators: Yahoo Finance daily · Hit Rate: Buy=next-day High, Sell=next-day Low</span>
+</div>
+
+<script>
+const TICKERS = [
+  // Large Cap Tech
+  {s:'AAPL',name:'Apple'},{s:'MSFT',name:'Microsoft'},{s:'NVDA',name:'NVIDIA'},
+  {s:'AMD',name:'AMD'},{s:'META',name:'Meta'},{s:'AMZN',name:'Amazon'},
+  {s:'GOOGL',name:'Alphabet'},{s:'TSLA',name:'Tesla'},{s:'AVGO',name:'Broadcom'},{s:'NFLX',name:'Netflix'},
+  // Semiconductors
+  {s:'INTC',name:'Intel'},{s:'MU',name:'Micron'},{s:'QCOM',name:'Qualcomm'},
+  {s:'TXN',name:'Texas Instruments'},{s:'ARM',name:'ARM Holdings'},{s:'SMCI',name:'Super Micro',caution:true},
+  // Enterprise Tech
+  {s:'ORCL',name:'Oracle'},{s:'CRM',name:'Salesforce'},{s:'ADBE',name:'Adobe'},
+  {s:'PLTR',name:'Palantir'},{s:'CRWD',name:'CrowdStrike'},{s:'AKAM',name:'Akamai'},{s:'TWLO',name:'Twilio'},
+  // Fintech/Crypto
+  {s:'COIN',name:'Coinbase',caution:true},{s:'HOOD',name:'Robinhood',caution:true},{s:'SOFI',name:'SoFi',caution:true},
+  // Financials
+  {s:'JPM',name:'JPMorgan',defensive:true},{s:'BAC',name:'Bank of America'},{s:'GS',name:'Goldman Sachs'},
+  {s:'MS',name:'Morgan Stanley'},{s:'C',name:'Citigroup'},
+  // Healthcare
+  {s:'JNJ',name:'Johnson & Johnson',defensive:true},{s:'UNH',name:'UnitedHealth',defensive:true},
+  {s:'PFE',name:'Pfizer',defensive:true},{s:'ABBV',name:'AbbVie',defensive:true},{s:'LLY',name:'Eli Lilly'},
+  // Consumer Defensive
+  {s:'KO',name:'Coca-Cola',defensive:true},{s:'WMT',name:'Walmart',defensive:true},
+  {s:'MCD',name:"McDonald's",defensive:true},{s:'PM',name:'Philip Morris',defensive:true},
+  {s:'KMB',name:'Kimberly-Clark',defensive:true},{s:'CLX',name:'Clorox',defensive:true},
+  {s:'TJX',name:'TJX Companies',defensive:true},{s:'BBY',name:'Best Buy'},{s:'MNST',name:'Monster Beverage'},
+  // Industrial
+  {s:'DE',name:'Deere & Co'},{s:'CSX',name:'CSX Railroad',defensive:true},{s:'BE',name:'Bloom Energy',caution:true},
+  // Energy
+  {s:'XOM',name:'ExxonMobil',defensive:true},{s:'CVX',name:'Chevron',defensive:true},{s:'OXY',name:'Occidental'},
+  // Speculative
+  {s:'APLD',name:'Applied Digital',caution:true},{s:'MARA',name:'Marathon Digital',caution:true},
+  {s:'SOUN',name:'SoundHound AI',caution:true},{s:'UBER',name:'Uber'},
+  {s:'NVTS',name:'Navitas Semi',caution:true},{s:'BW',name:'Babcock & Wilcox',caution:true},{s:'OKLO',name:'Oklo',caution:true},
+  // ETFs
+  {s:'SPY',name:'S&P 500 ETF',etf:true},{s:'QQQ',name:'Nasdaq 100 ETF',etf:true},
+  {s:'IWM',name:'Russell 2000 ETF',etf:true},{s:'XLF',name:'Financial ETF',etf:true},
+  {s:'XLE',name:'Energy ETF',etf:true},{s:'XLV',name:'Healthcare ETF',etf:true,defensive:true},
+  {s:'GDX',name:'Gold Miners ETF',etf:true},{s:'ARKK',name:'ARK Innovation ETF',etf:true,caution:true},
+  {s:'TLT',name:'20yr Treasury ETF',etf:true},{s:'SLV',name:'Silver ETF',etf:true},
+  {s:'IBIT',name:'BlackRock Bitcoin ETF',etf:true,caution:true},
+  // Berkshire
+  {s:'BRK-B',name:'Berkshire Hathaway B',defensive:true},
+];
+
+// Deduplicate
+const seen = new Set();
+const STOCKS = TICKERS.filter(t => { if(seen.has(t.s)) return false; seen.add(t.s); return true; });
+
+let prices = {}, indics = {}, ws = null, filterMode = 'all', customStocks = [];
+
+// ── CLEAR CACHE ──
+function clearCache() {
+  localStorage.removeItem('mr_prices');
+  localStorage.removeItem('mr_indics');
+  alert('Cache cleared! The page will now reload fresh.');
+  location.reload();
+}
+
+// ── EXPORT CSV ──
+// Exports all currently VISIBLE rows (respects active filter)
+function exportCSV() {
+  const rows = Array.from(document.querySelectorAll('#tbody tr[data-sym]'))
+    .filter(r => r.style.display !== 'none');
+
+  if(!rows.length) {
+    alert('No data to export yet — run a scan first!');
+    return;
+  }
+
+  const now = new Date().toLocaleString('en-US', {timeZone:'America/New_York'});
+  const filterLabel = filterMode === 'all' ? 'All Stocks' :
+    filterMode === 'strong' ? 'Strong Signals' :
+    filterMode === 'sbuy'   ? 'Strong Buy' :
+    filterMode === 'ssell'  ? 'Strong Sell' :
+    filterMode === 'caution'? 'Caution' :
+    filterMode === 'etf'    ? 'ETFs Only' :
+    filterMode === 'defensive' ? 'Defensive' : filterMode;
+
+  const headers = ['Symbol','Price','Chg %','RSI (14)','Bollinger Band','vs 200-Day MA','Score','Play','Hit Rate (Buy)','Hit Rate (Sell)','Last Signal','Days Since Signal'];
+
+  const csvRows = rows.map(row => {
+    const sym = row.dataset.sym;
+    const price = document.getElementById(`p-${sym}`)?.textContent || '—';
+    const chg   = document.getElementById(`c-${sym}`)?.textContent || '—';
+    const rsi   = document.getElementById(`rsi-${sym}`)?.textContent || '—';
+    const bb    = document.getElementById(`bb-${sym}`)?.textContent || '—';
+    const ma    = document.getElementById(`ma-${sym}`)?.textContent || '—';
+    const score = document.getElementById(`sc-${sym}`)?.textContent || '—';
+    const play  = document.getElementById(`pl-${sym}`)?.textContent || '—';
+
+    // Parse hit rate bars
+    const hitWrap = document.getElementById(`mrhit-${sym}`);
+    const hitRows = hitWrap ? hitWrap.querySelectorAll('.hit-row') : [];
+    let buyRate = '—', sellRate = '—';
+    hitRows.forEach(hr => {
+      const label = hr.querySelector('.hit-label')?.textContent?.trim();
+      const pct   = hr.querySelector('.hit-pct')?.textContent?.trim();
+      if(label === 'Buy')  buyRate  = pct || '—';
+      if(label === 'Sell') sellRate = pct || '—';
+    });
+
+    // Parse last signal
+    const lsig = document.getElementById(`lsig-${sym}`);
+    const lastType = lsig?.querySelector('.ls-type')?.textContent?.trim() || '—';
+    const lastDays = lsig?.querySelector('.ls-days')?.textContent?.trim() || '—';
+
+    return [sym, price, chg, rsi, bb, ma, score, play, buyRate, sellRate, lastType, lastDays];
+  });
+
+  const csvContent = [
+    [`Mean Reversion Scanner Export — ${now} ET`],
+    [`Filter: ${filterLabel} · ${rows.length} rows`],
+    [],
+    headers,
+    ...csvRows
+  ].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+
+  const blob = new Blob([csvContent], {type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `MeanReversionScanner_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── MARKET STATUS HELPER ──
+// Returns 'open', 'pre', 'after', or 'closed'
+function getMarketStatus() {
+  const et = new Date(new Date().toLocaleString('en-US', {timeZone:'America/New_York'}));
+  const day = et.getDay(), mins = et.getHours()*60 + et.getMinutes();
+  if(day===0||day===6) return 'closed';
+  if(mins>=570&&mins<960) return 'open';
+  if(mins>=240&&mins<570) return 'pre';
+  if(mins>=960&&mins<1200) return 'after';
+  return 'closed';
+}
+
+// Returns the right source label based on market status
+// During market hours: Finnhub /quote d.c is the live price → LIVE
+// Outside market hours: d.c is the last close → CLOSE
+function getPriceLabel() {
+  const status = getMarketStatus();
+  if(status === 'open') return 'LIVE';
+  if(status === 'pre') return 'PRE';
+  if(status === 'after') return 'AFTER';
+  return 'CLOSE';
+}
+
+// ── CLOCK ──
+function updateClock() {
+  const et = new Date(new Date().toLocaleString('en-US', {timeZone:'America/New_York'}));
+  const h = et.getHours(), m = et.getMinutes(), s = et.getSeconds();
+  document.getElementById('clock').textContent =
+    `${String(h%12||12).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ET`;
+  const b = document.getElementById('mktBadge');
+  const day = et.getDay(), mins = h*60+m;
+  if(day===0||day===6){b.className='market-badge closed';b.textContent='WEEKEND';return;}
+  if(mins>=570&&mins<960){b.className='market-badge open';b.textContent='MARKET OPEN';}
+  else if(mins>=240&&mins<570){b.className='market-badge pre';b.textContent='PRE-MARKET';}
+  else if(mins>=960&&mins<1200){b.className='market-badge pre';b.textContent='AFTER HOURS';}
+  else{b.className='market-badge closed';b.textContent='CLOSED';}
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ══════════════════════════════════════════════════════
+// FIX 1: RESTORE CACHED DATA — called immediately on load
+// Shows last known prices instantly before any API calls
+// ══════════════════════════════════════════════════════
+function restoreData() {
+  try {
+    const rp = localStorage.getItem('mr_prices');
+    const ri = localStorage.getItem('mr_indics');
+    if(rp) {
+      const saved = JSON.parse(rp);
+      Object.keys(saved).forEach(sym => {
+        const p = saved[sym];
+        if(!p.price || p.price <= 0) return; // skip if no valid price
+        // Restore price from cache (useful), but CLEAR chg% — it's yesterday's value
+        // Fresh chg% will come from fetchPrevCloses + WS, or Yahoo indicators
+        prices[sym] = { price: p.price, prevClose: p.prevClose || 0, chgPct: null };
+        const pEl = document.getElementById(`p-${sym}`);
+        const cEl = document.getElementById(`c-${sym}`);
+        const srcEl = document.getElementById(`src-${sym}`);
+        if(pEl) pEl.textContent = '$' + Number(p.price).toFixed(2);
+        if(srcEl) { srcEl.textContent = 'CACHE'; srcEl.className = 'src-tag src-cached'; }
+        // Show dashes for chg% until fresh data arrives
+        if(cEl) { cEl.textContent = '—'; cEl.className = 'chg neu'; }
+      });
+    }
+    if(ri) {
+      const saved = JSON.parse(ri);
+      Object.keys(saved).forEach(sym => {
+        indics[sym] = saved[sym];
+        applyIndicators(sym, saved[sym], prices[sym]?.price || saved[sym].lastClose);
+      });
+    }
+  } catch(e) { console.warn('restoreData error:', e); }
+}
+
+// ══════════════════════════════════════════════════════
+// startScan — NEW clean strategy:
+// 1. fetchPrevCloses(key) — Finnhub /quote for prevClose ONLY
+//    Small payload, no CORS proxy needed, very reliable
+//    Just needs d.pc (previous close) per symbol
+// 2. connectWS(key) — WebSocket streams live prices
+//    Now has prevClose so chg% calculates correctly
+// 3. loadIndicators() — Yahoo 1y for RSI/BB/MA
+//    Also paints price from meta.regularMarketPrice as bonus
+// 4. loadAllMRStats() — historical hit rates
+// ══════════════════════════════════════════════════════
+function startScan() {
+  const key = document.getElementById('apiKey').value.trim();
+  if(!key) { alert('Please enter your Finnhub API key.'); return; }
+  localStorage.setItem('finnhub_key', key);
+  renderSkeleton();
+  // STRATEGY: One clear pipeline
+  // 1. fetchAllPrices: Finnhub /quote for ALL stocks (no CORS proxy, reliable, fast)
+  //    - Gets d.c (current price) + d.pc (prev close) directly
+  //    - Validates sanity, paints price + chg% immediately
+  // 2. connectWS: live stream on top (prevClose already set so chg% works)
+  // 3. loadIndicators: Yahoo 1y for RSI/BB/MA (indicators only, no price extraction)
+  // 4. loadAllMRStats: historical hit rates
+  fetchAllPrices(key).then(() => connectWS(key));
+  loadIndicators();
+  loadAllMRStats();
+}
+
+// ══════════════════════════════════════════════════════
+// fetchAllPrices — Finnhub /quote for every stock
+// Direct call, no CORS proxy needed, very reliable.
+// Gets d.c (current/last price) + d.pc (previous close).
+// Finnhub d.c is sometimes split-unadjusted so we validate
+// chg% against d.pc — if >25% it looks like bad data, skip.
+// Batched 8 at a time, 250ms gap = all 70 stocks in ~2.5s.
+// Yahoo 1y indicators fetch will also paint price as backup
+// for any stocks Finnhub returns bad data for.
+// ══════════════════════════════════════════════════════
+async function fetchAllPrices(key) {
+  const st = document.getElementById('scanStatus');
+  st.textContent = 'Loading prices…';
+  const BATCH = 5, DELAY = 500;
+  for(let i = 0; i < STOCKS.length; i += BATCH) {
+    const batch = STOCKS.slice(i, i + BATCH);
+    await Promise.allSettled(batch.map(async t => {
+      try {
+        const r = await fetch(
+          `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.s)}&token=${key}`,
+          {signal: AbortSignal.timeout(7000)}
+        );
+        if(!r.ok) return;
+        const d = await r.json();
+        const pc = d.pc || 0;
+        const cp = d.c  || 0;
+        if(pc <= 0) return; // no prevClose = can't validate or calc chg%
+        if(cp <= 0) {
+          // Store prevClose only — Yahoo indicators will paint price
+          prices[t.s] = { ...prices[t.s], prevClose: pc };
+          return;
+        }
+        const chgPct = (cp - pc) / pc * 100;
+        if(Math.abs(chgPct) > 25) {
+          // d.c looks split-unadjusted — store prevClose, let Yahoo paint price
+          prices[t.s] = { ...prices[t.s], prevClose: pc };
+          return;
+        }
+        // All good — paint price and chg%
+        prices[t.s] = { price: cp, prevClose: pc, chgPct };
+        updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
+      } catch(e) {}
+    }));
+    if(i + BATCH < STOCKS.length) await sleep(DELAY);
+  }
+  // Retry pass — for any still missing, try Finnhub candle last close
+  // Candle API returns adjusted prices (unlike /quote which can be split-unadjusted)
+  await sleep(1000);
+  const missing = STOCKS.filter(t => !prices[t.s]?.price);
+  if(missing.length > 0) {
+    for(let i = 0; i < missing.length; i += 3) {
+      await Promise.allSettled(missing.slice(i, i+3).map(async t => {
+        try {
+          // First try /quote again
+          const r = await fetch(
+            `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.s)}&token=${key}`,
+            {signal: AbortSignal.timeout(7000)}
+          );
+          if(!r.ok) throw new Error('quote failed');
+          const d = await r.json();
+          const pc = d.pc || 0, cp = d.c || 0;
+          if(pc > 0 && cp > 0) {
+            const chgPct = (cp - pc) / pc * 100;
+            if(Math.abs(chgPct) <= 25) {
+              prices[t.s] = { price: cp, prevClose: pc, chgPct };
+              updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
+              return;
+            }
+          }
+          // /quote price looks bad (split-unadjusted) — skip
+          // fetchIndicatorAndStats will supply price from candle data
+        } catch(e) {}
+      }));
+      if(i + 3 < missing.length) await sleep(600);
+    }
+  }
+  savePrices();
+  st.textContent = '✓ Prices loaded — connecting live feed…';
+}
+
+// ── SKELETON — preserves any cached prices already in DOM ──
+function renderSkeleton() {
+  document.getElementById('tbody').innerHTML = STOCKS.map(t => `
+    <tr id="row-${t.s}" data-sym="${t.s}" data-score="neutral" data-caution="${t.caution?1:0}" data-etf="${t.etf?1:0}" data-defensive="${t.defensive?1:0}" data-hitrate="0" data-lastsignal="999">
+      <td><div class="sym-wrap">
+        <a class="sym" href="https://www.tradingview.com/chart/?symbol=${t.s}" target="_blank">${t.s}</a>
+        ${t.caution ? '<span class="caution-tag">⚠️</span>' : ''}
+        <a class="chart-btn" href="https://www.tradingview.com/chart/?symbol=${t.s}" target="_blank">📈 Chart</a>
+      </div></td>
+      <td><span class="price" id="p-${t.s}">${prices[t.s]?.price ? '$'+Number(prices[t.s].price).toFixed(2) : '—'}</span><span class="src-tag ${prices[t.s]?.price ? 'src-cached' : 'src-close'}" id="src-${t.s}">${prices[t.s]?.price ? 'CACHE' : 'WAIT'}</span></td>
+      <td><span class="chg ${(Number(prices[t.s]?.chgPct)||0)>0?'pos':(Number(prices[t.s]?.chgPct)||0)<0?'neg':'neu'}" id="c-${t.s}">${prices[t.s]?.chgPct != null ? ((Number(prices[t.s].chgPct)>=0?'+':'')+Number(prices[t.s].chgPct).toFixed(2)+'%') : '—'}</span></td>
+      <td><div class="rsi-wrap"><span class="rsi-val neutral" id="rsi-${t.s}">—</span>
+        <div class="rsi-bar-bg"><div class="rsi-bar-fill" id="rsibar-${t.s}" style="width:0%;background:#7a7a9a"></div></div></div></td>
+      <td><span class="bb-pill bb-mid" id="bb-${t.s}">—</span></td>
+      <td><span class="ma-pill" id="ma-${t.s}">—</span></td>
+      <td><span class="score-pill score-neutral" id="sc-${t.s}">—</span></td>
+      <td><span class="play-pill play-wait" id="pl-${t.s}">Wait</span></td>
+      <td><div class="hit-wrap" id="mrhit-${t.s}"><span class="hit-loading">Loading…</span></div></td>
+      <td><div class="last-signal" id="lsig-${t.s}"><span class="hit-loading">Loading…</span></div></td>
+    </tr>`).join('');
+  updateCounts();
+}
+
+// ══════════════════════════════════════════════════════
+// FIX 3: WEBSOCKET — only updates price if value is valid
+// Never blanks a cell; only overwrites with real data
+// ══════════════════════════════════════════════════════
+function connectWS(key) {
+  if(ws) { try { ws.close(); } catch(e) {} }
+  const st = document.getElementById('scanStatus');
+  st.className = 'scan-status'; st.textContent = 'Connecting to Finnhub…';
+  ws = new WebSocket(`wss://ws.finnhub.io?token=${key}`);
+  ws.onopen = () => {
+    st.className = 'scan-status ok'; st.textContent = '✓ Connected — Live prices streaming';
+    STOCKS.forEach(t => ws.send(JSON.stringify({type:'subscribe', symbol:t.s})));
+  };
+  ws.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if(d.type === 'trade' && d.data) {
+      d.data.forEach(trade => {
+        const sym = trade.s, price = trade.p;
+        if(!price || price <= 0) return; // never overwrite with bad data
+        const prevClose = prices[sym]?.prevClose;
+        const chgPct = prevClose && prevClose > 0 ? ((price - prevClose) / prevClose * 100) : (prices[sym]?.chgPct || null);
+        const old = prices[sym]?.price;
+        prices[sym] = { ...prices[sym], price, chgPct: chgPct !== null ? chgPct : 0 };
+        updatePriceCell(sym, price, prices[sym].chgPct, old, 'LIVE');
+      });
+    }
+  };
+  ws.onclose = () => {
+    st.className = 'scan-status'; st.textContent = 'Reconnecting…';
+    // Prices stay on screen during reconnect — no blanking
+    setTimeout(() => connectWS(document.getElementById('apiKey').value.trim()), 5000);
+  };
+  ws.onerror = () => { /* silent — onclose handles reconnect */ };
+}
+
+// ══════════════════════════════════════════════════════
+// FIX 4: updatePriceCell — never clears existing price
+// Only updates if new value is valid and non-zero
+// ══════════════════════════════════════════════════════
+function updatePriceCell(sym, price, chgPct, old, srcLabel) {
+  const pEl = document.getElementById(`p-${sym}`);
+  const cEl = document.getElementById(`c-${sym}`);
+  const srcEl = document.getElementById(`src-${sym}`);
+  const row = document.getElementById(`row-${sym}`);
+  if(!price || price <= 0) return; // guard: never write bad price
+  if(pEl) pEl.textContent = '$' + price.toFixed(2);
+  if(srcEl) {
+    srcEl.textContent = srcLabel || 'LIVE';
+    if(srcLabel === 'LIVE') srcEl.className = 'src-tag src-live';
+    else if(srcLabel === 'PRE' || srcLabel === 'AFTER') srcEl.className = 'src-tag src-pre';
+    else if(srcLabel === 'CACHE') srcEl.className = 'src-tag src-cached';
+    else srcEl.className = 'src-tag src-close';
+  }
+  if(cEl) {
+    if(chgPct === null || chgPct === undefined) {
+      // Don't blank it — keep whatever was there
+    } else {
+      cEl.textContent = (chgPct >= 0 ? '+' : '') + chgPct.toFixed(2) + '%';
+      cEl.className = 'chg ' + (chgPct > 0 ? 'pos' : chgPct < 0 ? 'neg' : 'neu');
+    }
+  }
+  if(row && old !== undefined && old > 0) {
+    row.classList.remove('fg','fr'); void row.offsetWidth;
+    row.classList.add(price > old ? 'fg' : 'fr');
+  }
+  if(indics[sym]) applyIndicators(sym, indics[sym], price);
+  savePrices();
+}
+
+// ── INDICATORS (Yahoo Finance via CORS proxy, fallback to Finnhub candles) ──
+async function loadIndicators() {
+  const st = document.getElementById('scanStatus');
+  st.textContent = 'Loading indicators…';
+
+  const YAHOO_PROXIES = [
+    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+  ];
+
+  // PHASE 1: Finnhub candles for ALL stocks — direct API, no proxy, no rate limits
+  // This guarantees every stock gets indicators + basic hit rates
+  // Run all 70 in parallel batches of 10 — Finnhub handles it fine
+  let loaded = 0;
+  const FINN_BATCH = 6, FINN_DELAY = 500;
+  for(let i = 0; i < STOCKS.length; i += FINN_BATCH) {
+    const batch = STOCKS.slice(i, i + FINN_BATCH);
+    // Pass empty proxies — fetchIndicatorAndStats will use finnhubData path
+    await Promise.allSettled(batch.map(t => fetchIndicatorAndStats(t, [])));
+    loaded += batch.length;
+    st.textContent = `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
+    if(i + FINN_BATCH < STOCKS.length) await sleep(FINN_DELAY);
+  }
+
+  st.className = 'scan-status ok';
+  st.textContent = '✓ All data loaded';
+  updateCounts();
+
+  // PHASE 2: Yahoo proxy enrichment in background — upgrades hit rates to use HIGH/LOW
+  // Non-blocking, runs quietly after everything else is shown
+  // Slower and may not complete for all stocks — that's OK, Finnhub data is already showing
+  setTimeout(async () => {
+    const BATCH = 3, DELAY = 1500;
+    for(let i = 0; i < STOCKS.length; i += BATCH) {
+      const batch = STOCKS.slice(i, i + BATCH);
+      const proxies = [...YAHOO_PROXIES.slice(i % 4), ...YAHOO_PROXIES.slice(0, i % 4)];
+      await Promise.allSettled(batch.map(t => fetchIndicatorAndStats(t, proxies)));
+      if(i + BATCH < STOCKS.length) await sleep(DELAY);
+    }
+  }, 2000);
+}
+
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchIndicator(sym, PROXIES) {
+  for(const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(8000)});
+      if(!r.ok) continue;
+      const d = await r.json();
+      const res = d?.chart?.result?.[0]; if(!res) continue;
+      const closes = res.indicators?.quote?.[0]?.close;
+      if(!closes || closes.length < 21) continue;
+      const valid = closes.filter(v => v != null && !isNaN(v));
+      if(valid.length < 21) continue;
+      const ind = calcIndicators(valid);
+      indics[sym] = ind;
+
+      // NOTE: We do NOT extract price from the 1y chart response here.
+      // The 1y chart meta.regularMarketPrice is cached/stale in Yahoo's CDN.
+      // fetchAllPrices() uses Yahoo v7/quote which returns fresh live prices.
+      // Here we only update the price cell if fetchAllPrices hasn't set one yet.
+      if(!prices[sym]?.price) {
+        const lastClose = valid[valid.length - 1];
+        if(lastClose > 0) {
+          prices[sym] = { ...prices[sym], price: lastClose };
+          updatePriceCell(sym, lastClose, prices[sym]?.chgPct || 0, undefined, getPriceLabel());
+        }
+      }
+
+      const currentPrice = prices[sym]?.price || valid[valid.length-1];
+      applyIndicators(sym, ind, currentPrice);
+      return;
+    } catch(e) {}
+  }
+  // Fallback: Finnhub candle API (no CORS issues) — also extracts price
+  try {
+    const key = document.getElementById('apiKey').value.trim();
+    if(!key) return;
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - (365 * 24 * 60 * 60);
+    const d = await (await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`, {signal: AbortSignal.timeout(8000)})).json();
+    if(d.s !== 'ok' || !d.c || d.c.length < 21) return;
+    const valid = d.c.filter(v => v != null && !isNaN(v));
+    if(valid.length < 21) return;
+    const ind = calcIndicators(valid);
+    indics[sym] = ind;
+    if(!prices[sym]?.price) {
+      const price = valid[valid.length-1];
+      const prevClose = valid[valid.length-2] || price;
+      const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
+      // Always paint price — if chg% looks wrong just show 0%
+      const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
+      prices[sym] = { price, prevClose, chgPct: safeChg };
+      updatePriceCell(sym, price, safeChg, undefined, getPriceLabel());
+    }
+    const currentPrice = prices[sym]?.price || valid[valid.length-1];
+    applyIndicators(sym, ind, currentPrice);
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════
+// fetchIndicatorAndStats — ONE Yahoo fetch per stock
+// does BOTH indicators (RSI/BB/MA) AND hit rate stats.
+// Halves total Yahoo requests vs separate calls.
+// ══════════════════════════════════════════════════════
+async function fetchIndicatorAndStats(ticker, PROXIES) {
+  const sym = ticker.s;
+  const hitEl  = document.getElementById(`mrhit-${sym}`);
+  const lsigEl = document.getElementById(`lsig-${sym}`);
+  const row    = document.getElementById(`row-${sym}`);
+  const key    = document.getElementById('apiKey').value.trim();
+
+  // Try Finnhub candles FIRST — direct API, no CORS proxy, no rate limits
+  // If it works, we get closes for indicators + hit rates (no highs/lows)
+  // Yahoo proxy is fallback only, and gives us highs/lows for better hit rates
+  let finnhubData = null;
+  try {
+    const to = Math.floor(Date.now()/1000), from = to - (400*24*60*60);
+    const r = await fetch(
+      `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`,
+      {signal: AbortSignal.timeout(8000)}
+    );
+    const d = await r.json();
+    if(d.s === 'ok' && d.c && d.c.length >= 21) finnhubData = d;
+  } catch(e) {}
+
+  // Try Yahoo proxies for highs/lows (better hit rate accuracy)
+  // But only if we haven't already processed via Finnhub successfully
+  for(const proxy of PROXIES) {
+    try {
+      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(8000)});
+      if(!r.ok) continue;
+      const d = await r.json();
+      const res = d?.chart?.result?.[0]; if(!res) continue;
+      const q = res.indicators?.quote?.[0];
+      const closes = q?.close, highs = q?.high, lows = q?.low;
+      const timestamps = res.timestamp;
+      if(!closes || closes.length < 21) continue;
+      const valid = closes.filter(v => v != null && !isNaN(v));
+      if(valid.length < 21) continue;
+
+      // ── INDICATORS ──
+      const ind = calcIndicators(valid);
+      indics[sym] = ind;
+      if(!prices[sym]?.price) {
+        const lastClose = valid[valid.length-1];
+        if(lastClose > 0) {
+          prices[sym] = { ...prices[sym], price: lastClose };
+          updatePriceCell(sym, lastClose, prices[sym]?.chgPct || 0, undefined, getPriceLabel());
+        }
+      }
+      applyIndicators(sym, ind, prices[sym]?.price || valid[valid.length-1]);
+
+      // ── HIT RATE STATS ──
+      let buySignals=0, buyHits=0, sellSignals=0, sellHits=0;
+      let lastBuyDays=999, lastSellDays=999, lastBuyType='', lastSellType='';
+      const today = new Date();
+      for(let i=20; i<closes.length-1; i++) {
+        const slice = closes.slice(i-14, i+1).filter(v => v!=null);
+        if(slice.length < 15) continue;
+        const rsi = calcRSIArr(slice);
+        const curr = closes[i];
+        if(!curr) continue;
+        const nextHigh  = highs?.[i+1];
+        const nextLow   = lows?.[i+1];
+        const nextClose = closes[i+1];
+        const bbSlice = closes.slice(Math.max(0,i-19), i+1).filter(v=>v!=null);
+        const mean = bbSlice.reduce((a,b)=>a+b,0)/bbSlice.length;
+        const std = Math.sqrt(bbSlice.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/bbSlice.length);
+        const lower = mean-2*std, upper = mean+2*std;
+        if(rsi < 30 && curr <= lower) {
+          buySignals++;
+          const buyTarget = nextHigh ?? nextClose;
+          if(buyTarget && buyTarget > curr) buyHits++;
+          if(timestamps?.[i]) { const days=Math.floor((today-new Date(timestamps[i]*1000))/864e5); if(days<lastBuyDays){lastBuyDays=days;lastBuyType='Strong Buy';} }
+        }
+        if(rsi > 70 && curr >= upper) {
+          sellSignals++;
+          const sellTarget = nextLow ?? nextClose;
+          if(sellTarget && sellTarget < curr) sellHits++;
+          if(timestamps?.[i]) { const days=Math.floor((today-new Date(timestamps[i]*1000))/864e5); if(days<lastSellDays){lastSellDays=days;lastSellType='Strong Sell';} }
+        }
+      }
+
+      // ── RENDER HIT RATE ──
+      const pctClass = p => p>=70?'high':p>=50?'mid':'low';
+      const barColor = p => p>=70?'#34d399':p>=50?'#fbbf24':'#f87171';
+      const totalSigs = buySignals + sellSignals;
+      if(hitEl) {
+        if(totalSigs===0) {
+          hitEl.innerHTML = `<span class="hit-signals">No signals in past year</span>`;
+        } else {
+          const buyRate  = buySignals  > 0 ? Math.round(buyHits/buySignals*100)   : 0;
+          const sellRate = sellSignals > 0 ? Math.round(sellHits/sellSignals*100) : 0;
+          let html = '';
+          if(buySignals>0)  html+=`<div class="hit-row"><span class="hit-label">Buy</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${buyRate}%;background:${barColor(buyRate)}"></div></div><span class="hit-pct ${pctClass(buyRate)}">${buyRate}%</span></div>`;
+          if(sellSignals>0) html+=`<div class="hit-row"><span class="hit-label">Sell</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${sellRate}%;background:${barColor(sellRate)}"></div></div><span class="hit-pct ${pctClass(sellRate)}">${sellRate}%</span></div>`;
+          html+=`<div class="hit-signals">${totalSigs} signal${totalSigs!==1?'s':''} · ${buySignals}B/${sellSignals}S</div>`;
+          hitEl.innerHTML = html;
+          if(row) row.dataset.hitrate = Math.max(buySignals>0?buyRate:0, sellSignals>0?sellRate:0);
+        }
+      }
+
+      // ── RENDER LAST SIGNAL ──
+      const lastDays = Math.min(lastBuyDays, lastSellDays);
+      const lastType = lastBuyDays<=lastSellDays ? lastBuyType : lastSellType;
+      const lastRate = lastType==='Strong Buy'
+        ? (buySignals>0  ? Math.round(buyHits/buySignals*100)   : 0)
+        : (sellSignals>0 ? Math.round(sellHits/sellSignals*100) : 0);
+      if(lsigEl) {
+        if(lastDays===999) {
+          lsigEl.innerHTML = `<span class="ls-days old">No signals</span>`;
+        } else {
+          const daysClass = lastDays<=7?'recent':lastDays<=30?'moderate':'old';
+          const rateClass = lastRate>=70?'high':lastRate>=50?'mid':'low';
+          lsigEl.innerHTML = `<span class="ls-days ${daysClass}">${lastDays===0?'Today':lastDays===1?'Yesterday':lastDays+' days ago'}</span><span class="ls-type">${lastType}</span><span class="ls-rate ${rateClass}">${lastRate}% hit rate</span>`;
+        }
+      }
+      if(row) row.dataset.lastsignal = lastDays;
+      saveIndics();
+      return; // success — stop trying proxies
+    } catch(e) {}
+  }
+
+  // Finnhub candle fallback — uses data fetched at top of function
+  // Calculates hit rates from closes only (next-day close, not high/low)
+  if(finnhubData) {
+    try {
+      const valid = finnhubData.c.filter(v => v!=null && !isNaN(v));
+      if(valid.length >= 21) {
+        const ind = calcIndicators(valid);
+        indics[sym] = ind;
+        // Candle last close is split-adjusted — use as price if /quote gave bad data
+        const lc = valid[valid.length-1];
+        const lc2 = valid.length > 1 ? valid[valid.length-2] : lc;
+        if(lc > 0 && !prices[sym]?.price) {
+          const safeChg = lc2 > 0 && Math.abs((lc-lc2)/lc2*100) <= 25 ? (lc-lc2)/lc2*100 : 0;
+          prices[sym] = { price: lc, prevClose: lc2 || lc, chgPct: safeChg };
+          updatePriceCell(sym, lc, safeChg, undefined, getPriceLabel());
+        }
+        applyIndicators(sym, ind, prices[sym]?.price || lc);
+
+        // Hit rate from closes (next-day close as proxy for high/low)
+        let bS=0,bH=0,sS=0,sH=0,lBD=999,lSD=999,lBT='',lST='';
+        const today=new Date();
+        const ts = finnhubData.t || [];
+        for(let i=20;i<valid.length-1;i++){
+          const slice=valid.slice(i-14,i+1);
+          if(slice.length<15) continue;
+          const rsi=calcRSIArr(slice);
+          const curr=valid[i], next=valid[i+1];
+          if(!curr||!next) continue;
+          const bbS=valid.slice(Math.max(0,i-19),i+1);
+          const mean=bbS.reduce((a,b)=>a+b,0)/bbS.length;
+          const std=Math.sqrt(bbS.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/bbS.length);
+          if(rsi<30&&curr<=mean-2*std){bS++;if(next>curr)bH++;if(ts[i]){const d=Math.floor((today-new Date(ts[i]*1000))/864e5);if(d<lBD){lBD=d;lBT='Strong Buy';}}}
+          if(rsi>70&&curr>=mean+2*std){sS++;if(next<curr)sH++;if(ts[i]){const d=Math.floor((today-new Date(ts[i]*1000))/864e5);if(d<lSD){lSD=d;lST='Strong Sell';}}}
+        }
+        const pC=p=>p>=70?'high':p>=50?'mid':'low', bC=p=>p>=70?'#34d399':p>=50?'#fbbf24':'#f87171';
+        const tot=bS+sS;
+        if(hitEl){
+          if(tot===0){hitEl.innerHTML=`<span class="hit-signals">No signals in past year</span>`;}
+          else{
+            const br=bS>0?Math.round(bH/bS*100):0, sr=sS>0?Math.round(sH/sS*100):0;
+            let html='';
+            if(bS>0) html+=`<div class="hit-row"><span class="hit-label">Buy</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${br}%;background:${bC(br)}"></div></div><span class="hit-pct ${pC(br)}">${br}%</span></div>`;
+            if(sS>0) html+=`<div class="hit-row"><span class="hit-label">Sell</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${sr}%;background:${bC(sr)}"></div></div><span class="hit-pct ${pC(sr)}">${sr}%</span></div>`;
+            html+=`<div class="hit-signals">${tot} signal${tot!==1?'s':''} · ${bS}B/${sS}S</div>`;
+            hitEl.innerHTML=html;
+            if(row) row.dataset.hitrate=Math.max(bS>0?br:0,sS>0?sr:0);
+          }
+        }
+        const lD=Math.min(lBD,lSD), lT=lBD<=lSD?lBT:lST;
+        const lR=lT==='Strong Buy'?(bS>0?Math.round(bH/bS*100):0):(sS>0?Math.round(sH/sS*100):0);
+        if(lsigEl){
+          if(lD===999){lsigEl.innerHTML=`<span class="ls-days old">No signals</span>`;}
+          else{const dC=lD<=7?'recent':lD<=30?'moderate':'old',rC=lR>=70?'high':lR>=50?'mid':'low';lsigEl.innerHTML=`<span class="ls-days ${dC}">${lD===0?'Today':lD===1?'Yesterday':lD+' days ago'}</span><span class="ls-type">${lT}</span><span class="ls-rate ${rC}">${lR}% hit rate</span>`;}
+        }
+        if(row) row.dataset.lastsignal=lD;
+        saveIndics();
+      }
+    } catch(e) {}
+  }
+}
+
+
+function calcIndicators(closes) {
+  const last = closes[closes.length-1];
+  const rsi = calcRSI(closes, 14);
+  const period = 20;
+  const slice = closes.slice(-period);
+  const mean = slice.reduce((a,b) => a+b, 0) / period;
+  const std = Math.sqrt(slice.map(v => (v-mean)**2).reduce((a,b) => a+b, 0) / period);
+  const upper = mean + 2*std, lower = mean - 2*std;
+  let bbPos = 'mid';
+  if(last <= lower) bbPos = 'lower'; else if(last >= upper) bbPos = 'upper';
+  const ma200Data = closes.slice(-200);
+  const ma200 = ma200Data.reduce((a,b) => a+b, 0) / ma200Data.length;
+  const maPos = last > ma200 ? 'above' : 'below';
+  return { rsi, upper, lower, mean, bbPos, ma200, maPos, lastClose: last };
+}
+
+function calcRSI(closes, period) {
+  let gains = 0, losses = 0;
+  for(let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    if(diff > 0) gains += diff; else losses += Math.abs(diff);
+  }
+  const avgG = gains / period, avgL = losses / period;
+  if(avgL === 0) return 100;
+  return 100 - (100 / (1 + avgG / avgL));
+}
+
+function applyIndicators(sym, ind, price) {
+  const { rsi, bbPos, maPos, ma200 } = ind;
+  const rsiEl = document.getElementById(`rsi-${sym}`);
+  const rsiBar = document.getElementById(`rsibar-${sym}`);
+  if(rsiEl) { rsiEl.textContent = rsi.toFixed(1); rsiEl.className = 'rsi-val ' + (rsi < 30 ? 'oversold' : rsi > 70 ? 'overbought' : 'neutral'); }
+  if(rsiBar) { rsiBar.style.width = rsi + '%'; rsiBar.style.background = rsi < 30 ? '#34d399' : rsi > 70 ? '#f87171' : '#7a7a9a'; }
+  const bbEl = document.getElementById(`bb-${sym}`);
+  if(bbEl) {
+    if(bbPos === 'lower') { bbEl.textContent = 'Lower Band'; bbEl.className = 'bb-pill bb-lower'; bbEl.dataset.bb = 'lower'; }
+    else if(bbPos === 'upper') { bbEl.textContent = 'Upper Band'; bbEl.className = 'bb-pill bb-upper'; bbEl.dataset.bb = 'upper'; }
+    else { bbEl.textContent = 'Mid Band'; bbEl.className = 'bb-pill bb-mid'; bbEl.dataset.bb = 'mid'; }
+  }
+  const maEl = document.getElementById(`ma-${sym}`);
+  if(maEl) {
+    const pct = price ? ((price - ma200) / ma200 * 100) : ((ind.lastClose - ma200) / ma200 * 100);
+    if(maPos === 'above') { maEl.textContent = `Above (+${Math.abs(pct).toFixed(1)}%)`; maEl.className = 'ma-pill ma-above'; }
+    else { maEl.textContent = `Below (-${Math.abs(pct).toFixed(1)}%)`; maEl.className = 'ma-pill ma-below'; }
+  }
+  let score = 0;
+  if(rsi < 30) score += 2; else if(rsi < 40) score += 1; else if(rsi > 70) score -= 2; else if(rsi > 60) score -= 1;
+  if(bbPos === 'lower') score += 2; else if(bbPos === 'upper') score -= 2;
+  if(maPos === 'above') score += 1; else score -= 1;
+  let scoreLabel, scoreClass, play, playClass;
+  if(score >= 4) { scoreLabel = '⚡ Strong Buy'; scoreClass = 'score-sbuy'; play = 'Buy Calls'; playClass = 'play-calls'; }
+  else if(score >= 2) { scoreLabel = 'Buy'; scoreClass = 'score-buy'; play = 'Buy Calls'; playClass = 'play-calls'; }
+  else if(score <= -4) { scoreLabel = '⚡ Strong Sell'; scoreClass = 'score-ssell'; play = 'Buy Puts'; playClass = 'play-puts'; }
+  else if(score <= -2) { scoreLabel = 'Sell'; scoreClass = 'score-sell'; play = 'Buy Puts'; playClass = 'play-puts'; }
+  else { scoreLabel = 'Neutral'; scoreClass = 'score-neutral'; play = 'Wait'; playClass = 'play-wait'; }
+  const scEl = document.getElementById(`sc-${sym}`);
+  const plEl = document.getElementById(`pl-${sym}`);
+  if(scEl) { scEl.textContent = scoreLabel; scEl.className = 'score-pill ' + scoreClass; }
+  if(plEl) { plEl.textContent = play; plEl.className = 'play-pill ' + playClass; }
+  const row = document.getElementById(`row-${sym}`);
+  if(row) {
+    let ds = 'neutral';
+    if(scoreClass === 'score-sbuy') ds = 'sbuy';
+    else if(scoreClass === 'score-buy') ds = 'buy';
+    else if(scoreClass === 'score-ssell') ds = 'ssell';
+    else if(scoreClass === 'score-sell') ds = 'sell';
+    row.dataset.score = ds;
+  }
+  applyFilter(); updateCounts(); saveIndics();
+}
+
+// ── MODALS ──
+function showSavePermanently() {
+  const sym = document.getElementById('addSym').textContent.trim(); if(!sym) return;
+  document.getElementById('modalCode').textContent = ` {s:'${sym}', name:'${sym}'},`;
+  document.getElementById('saveModal').classList.add('open');
+}
+function showSavePermanentlyFound() {
+  const sym = document.getElementById('foundSym').textContent.trim();
+  document.getElementById('modalCode').textContent = ` {s:'${sym}', name:'${sym}'},`;
+  document.getElementById('saveModal').classList.add('open');
+}
+function copyModalCode() {
+  navigator.clipboard.writeText(document.getElementById('modalCode').textContent).then(() => {
+    const btn = document.getElementById('btnCopyCode');
+    btn.textContent = '✅ Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copy Code'; btn.classList.remove('copied'); }, 2500);
+  });
+}
+function closeModal() { document.getElementById('saveModal').classList.remove('open'); }
+function showConfirmRemove() {
+  const sym = document.getElementById('foundPanel').dataset.sym;
+  document.getElementById('confirmSym').textContent = sym;
+  document.getElementById('confirmModal').dataset.sym = sym;
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirm() { document.getElementById('confirmModal').classList.remove('open'); }
+function confirmRemove() {
+  const sym = document.getElementById('confirmModal').dataset.sym;
+  closeConfirm(); clearSearch();
+  const row = document.getElementById(`row-${sym}`);
+  if(row) { row.style.transition = 'opacity .3s'; row.style.opacity = '0'; setTimeout(() => { row.style.display = 'none'; updateCounts(); }, 300); }
+  customStocks = customStocks.filter(s => s !== sym);
+}
+
+// ── SEARCH ──
+function handleSearch(val) {
+  const q = val.trim().toUpperCase();
+  document.getElementById('searchClear').style.display = q ? 'block' : 'none';
+  const addPanel = document.getElementById('addPanel');
+  const foundPanel = document.getElementById('foundPanel');
+  if(!q) { applyFilter(); addPanel.style.display = 'none'; foundPanel.style.display = 'none'; return; }
+  const allSyms = STOCKS.map(t => t.s).concat(customStocks);
+  const match = allSyms.find(s => s === q);
+  if(match) {
+    document.querySelectorAll('#tbody tr[data-sym]').forEach(r => { r.style.display = r.dataset.sym === q ? '' : 'none'; });
+    document.getElementById('foundSym').textContent = q;
+    foundPanel.dataset.sym = q; foundPanel.style.display = 'flex'; addPanel.style.display = 'none';
+  } else {
+    document.querySelectorAll('#tbody tr[data-sym]').forEach(r => { r.style.display = ''; r.style.opacity = r.dataset.sym.startsWith(q) ? '1' : '0.3'; });
+    foundPanel.style.display = 'none';
+    if(q.length >= 1 && q.length <= 6 && /^[A-Z.\-]+$/.test(q)) {
+      document.getElementById('addSym').textContent = q;
+      document.getElementById('btnAdd').dataset.sym = q;
+      addPanel.style.display = 'flex';
+    } else addPanel.style.display = 'none';
+  }
+}
+function searchKeydown(e) {
+  if(e.key === 'Enter') { const q = document.getElementById('searchInput').value.trim().toUpperCase(); if(q && !STOCKS.map(t=>t.s).concat(customStocks).includes(q)) addCustomStock(q); }
+  if(e.key === 'Escape') clearSearch();
+}
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  document.getElementById('addPanel').style.display = 'none';
+  document.getElementById('foundPanel').style.display = 'none';
+  document.querySelectorAll('#tbody tr[data-sym]').forEach(r => { r.style.opacity = '1'; });
+  applyFilter();
+}
+async function addCustomStock(sym) {
+  sym = sym || document.getElementById('btnAdd').dataset.sym; if(!sym) return;
+  sym = sym.toUpperCase();
+  if(customStocks.includes(sym) || STOCKS.find(t => t.s === sym)) {
+    clearSearch();
+    const row = document.getElementById(`row-${sym}`);
+    if(row) { row.scrollIntoView({behavior:'smooth', block:'center'}); row.classList.add('fg'); setTimeout(() => row.classList.remove('fg'), 1000); }
+    return;
+  }
+  customStocks.push(sym);
+  const tbody = document.getElementById('tbody');
+  const tr = document.createElement('tr');
+  tr.id = `row-${sym}`; tr.dataset.sym = sym; tr.dataset.score = 'neutral'; tr.dataset.caution = '0'; tr.dataset.etf = '0'; tr.dataset.defensive = '0';
+  tr.innerHTML = `<td><div class="sym-wrap">
+    <a class="sym" href="https://www.tradingview.com/chart/?symbol=${sym}" target="_blank">${sym}</a>
+    <span class="custom-tag">+ Added</span>
+    <a class="chart-btn" href="https://www.tradingview.com/chart/?symbol=${sym}" target="_blank">📈 Chart</a>
+  </div></td>
+  <td><span class="price" id="p-${sym}">—</span><span class="src-tag src-close" id="src-${sym}">WAIT</span></td>
+  <td><span class="chg neu" id="c-${sym}">—</span></td>
+  <td><div class="rsi-wrap"><span class="rsi-val neutral" id="rsi-${sym}">—</span>
+    <div class="rsi-bar-bg"><div class="rsi-bar-fill" id="rsibar-${sym}" style="width:0%"></div></div></div></td>
+  <td><span class="bb-pill bb-mid" id="bb-${sym}">—</span></td>
+  <td><span class="ma-pill" id="ma-${sym}">—</span></td>
+  <td><span class="score-pill score-neutral" id="sc-${sym}">Loading…</span></td>
+  <td><span class="play-pill play-wait" id="pl-${sym}">—</span></td>
+  <td><div class="hit-wrap" id="mrhit-${sym}"><span class="hit-loading">Loading…</span></div></td>
+  <td><div class="last-signal" id="lsig-${sym}"><span class="hit-loading">Loading…</span></div></td>`;
+  tbody.appendChild(tr);
+  clearSearch(); tr.scrollIntoView({behavior:'smooth', block:'center'});
+  if(ws && ws.readyState === 1) ws.send(JSON.stringify({type:'subscribe', symbol:sym}));
+  const key = document.getElementById('apiKey').value.trim();
+  if(key) {
+    // Use Finnhub /quote for prevClose (reliable, no CORS proxy needed)
+    // WebSocket subscription above will stream live price
+    try {
+      const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${key}`, {signal: AbortSignal.timeout(6000)});
+      const d = await r.json();
+      const pc = d.pc || 0, cp = d.c || 0;
+      if(pc > 0) {
+        prices[sym] = { prevClose: pc };
+        if(cp > 0) {
+          const chgPct = ((cp - pc) / pc * 100);
+          if(Math.abs(chgPct) <= 25) {
+            prices[sym] = { price: cp, prevClose: pc, chgPct };
+            updatePriceCell(sym, cp, chgPct, undefined, getPriceLabel());
+          }
+        }
+      }
+    } catch(e) {}
+  }
+  const PROXIES = [
+    s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+    s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
+  ];
+  await fetchIndicator(sym, PROXIES);
+  updateCounts();
+}
+
+// ── SORT ──
+let sortCol = 'score', sortDir = 'desc';
+const SCORE_ORDER = {sbuy:4, buy:3, neutral:2, sell:1, ssell:0};
+const BB_ORDER = {lower:0, mid:1, upper:2};
+function sortBy(col) {
+  if(sortCol === col) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = col; sortDir = col === 'sym' ? 'asc' : 'desc'; }
+  document.querySelectorAll('thead th').forEach(th => { th.classList.remove('sort-asc','sort-desc'); if(th.dataset.col === col) th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc'); });
+  const tbody = document.getElementById('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr[data-sym]'));
+  rows.sort((a, b) => {
+    const sa = a.dataset.sym, sb = b.dataset.sym;
+    let va, vb;
+    switch(col) {
+      case 'sym': return sortDir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+      case 'price': va = parseFloat(document.getElementById(`p-${sa}`)?.textContent?.replace('$',''))||0; vb = parseFloat(document.getElementById(`p-${sb}`)?.textContent?.replace('$',''))||0; break;
+      case 'chg': va = parseFloat(document.getElementById(`c-${sa}`)?.textContent)||0; vb = parseFloat(document.getElementById(`c-${sb}`)?.textContent)||0; break;
+      case 'rsi': va = parseFloat(document.getElementById(`rsi-${sa}`)?.textContent)||0; vb = parseFloat(document.getElementById(`rsi-${sb}`)?.textContent)||0; break;
+      case 'bb': va = BB_ORDER[document.getElementById(`bb-${sa}`)?.dataset.bb||'mid']??1; vb = BB_ORDER[document.getElementById(`bb-${sb}`)?.dataset.bb||'mid']??1; break;
+      case 'ma': va = parseFloat(document.getElementById(`ma-${sa}`)?.textContent?.match(/[\d.]+/)?.[0])||0; vb = parseFloat(document.getElementById(`ma-${sb}`)?.textContent?.match(/[\d.]+/)?.[0])||0; break;
+      case 'score': va = SCORE_ORDER[a.dataset.score||'neutral']??2; vb = SCORE_ORDER[b.dataset.score||'neutral']??2; break;
+      case 'hitrate': va = parseFloat(a.dataset.hitrate)||0; vb = parseFloat(b.dataset.hitrate)||0; break;
+      case 'lastSignal': va = parseFloat(a.dataset.lastsignal)||999; vb = parseFloat(b.dataset.lastsignal)||999; break;
+      case 'play': va = document.getElementById(`pl-${sa}`)?.textContent||''; vb = document.getElementById(`pl-${sb}`)?.textContent||''; return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      default: return 0;
+    }
+    return sortDir === 'asc' ? va - vb : vb - va;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// ── FILTER ──
+function setFilter(f, btn) { filterMode = f; document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); if(btn) btn.classList.add('active'); applyFilter(); }
+function applyFilter() {
+  document.querySelectorAll('#tbody tr[data-sym]').forEach(r => {
+    const score = r.dataset.score || 'neutral';
+    let show = false;
+    switch(filterMode) {
+      case 'all': show = true; break;
+      case 'strong': show = score === 'sbuy' || score === 'ssell'; break;
+      case 'sbuy': show = score === 'sbuy'; break;
+      case 'ssell': show = score === 'ssell'; break;
+      case 'caution': show = r.dataset.caution === '1'; break;
+      case 'etf': show = r.dataset.etf === '1'; break;
+      case 'defensive': show = r.dataset.defensive === '1'; break;
+      default: show = true;
+    }
+    r.style.display = show ? '' : 'none';
+  });
+}
+function updateCounts() {
+  const rows = document.querySelectorAll('#tbody tr[data-sym]');
+  let all = 0, sbuy = 0, ssell = 0, caution = 0, etf = 0, defensive = 0;
+  rows.forEach(r => { all++; const sc = r.dataset.score||'neutral'; if(sc==='sbuy') sbuy++; if(sc==='ssell') ssell++; if(r.dataset.caution==='1') caution++; if(r.dataset.etf==='1') etf++; if(r.dataset.defensive==='1') defensive++; });
+  document.getElementById('cnt-all').textContent = all;
+  document.getElementById('cnt-strong').textContent = sbuy + ssell;
+  document.getElementById('cnt-sbuy').textContent = sbuy;
+  document.getElementById('cnt-ssell').textContent = ssell;
+  document.getElementById('cnt-caution').textContent = caution;
+  document.getElementById('cnt-etf').textContent = etf;
+  document.getElementById('cnt-defensive').textContent = defensive;
+}
+
+// ── PERSISTENCE ──
+function savePrices() { try { localStorage.setItem('mr_prices', JSON.stringify(prices)); } catch(e) {} }
+function saveIndics() { try { localStorage.setItem('mr_indics', JSON.stringify(indics)); } catch(e) {} }
+
+
+// ── HISTORICAL HIT RATE + LAST SIGNAL ──
+async function loadAllMRStats() {
+  // Hit rates now calculated inside fetchIndicatorAndStats — no separate pass needed
+  // Kept for compatibility with startScan() call
+}
+
+
+function calcRSIArr(closes) {
+  const period = 14;
+  if(closes.length < period + 1) return 50;
+  let gains = 0, losses = 0;
+  for(let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    if(diff > 0) gains += diff; else losses += Math.abs(diff);
+  }
+  const avgG = gains / period, avgL = losses / period;
+  if(avgL === 0) return 100;
+  return 100 - (100 / (1 + avgG / avgL));
+}
+
+// ── MONEY RAIN ──
+function celebrate() {
+  const canvas = document.getElementById('money-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const symbols = ['💵','💴','💶','💷','🪙','💰','💸','🤑'];
+  const drops = Array.from({length:80}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -canvas.height,
+    speed: 2 + Math.random() * 4,
+    sym: symbols[Math.floor(Math.random() * symbols.length)],
+    size: 16 + Math.random() * 24,
+    rot: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.2
+  }));
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drops.forEach(d => {
+      ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+      ctx.font = `${d.size}px serif`; ctx.textAlign = 'center';
+      ctx.fillText(d.sym, 0, 0); ctx.restore();
+      d.y += d.speed; d.rot += d.rotSpeed;
+      if(d.y > canvas.height) { d.y = -d.size; d.x = Math.random() * canvas.width; }
+    });
+    frame++;
+    if(frame < 300) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+
+// ══════════════════════════════════════════════════════
+// FIX 6: window.onload — the missing piece that ties it all together
+// 1) Build the skeleton rows immediately
+// 2) Restore cached prices so nothing shows blank on load
+// 3) Auto-start scan if API key was saved previously
+// ══════════════════════════════════════════════════════
+window.onload = function() {
+  renderSkeleton();   // build table rows first
+  restoreData();      // paint cached prices into the rows immediately
+  const savedKey = localStorage.getItem('finnhub_key');
+  if(savedKey) {
+    document.getElementById('apiKey').value = savedKey;
+    startScan(); // auto-fire — loadIndicators will populate prices + connect WS
+  }
+};
+</script>
+</body>
+</html>
 
