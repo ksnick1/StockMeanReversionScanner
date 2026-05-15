@@ -722,20 +722,38 @@ function updatePriceCell(sym, price, chgPct, old, srcLabel) {
 // ── INDICATORS (Yahoo Finance via CORS proxy, fallback to Finnhub candles) ──
 async function loadIndicators() {
   document.getElementById('scanStatus').textContent = 'Loading indicators…';
-  const PROXIES = [
+
+  // 4 proxies — rotate which one each stock hits first to spread load
+  const PROXY_BASES = [
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
+
+  // Interleave fetch order: instead of [0,1,2,...,69] do [0,18,36,54, 1,19,37,55, ...]
+  // This ensures ETFs (positions 56-70) get fetched in the FIRST batch
+  const stride = Math.ceil(STOCKS.length / 4);
+  const interleaved = [];
+  for(let offset = 0; offset < stride; offset++) {
+    for(let lane = 0; lane < 4; lane++) {
+      const idx = lane * stride + offset;
+      if(idx < STOCKS.length) interleaved.push(STOCKS[idx]);
+    }
+  }
+
   let loaded = 0;
-  const BATCH = 8, DELAY = 400;
-  for(let i = 0; i < STOCKS.length; i += BATCH) {
-    const batch = STOCKS.slice(i, i + BATCH);
-    await Promise.allSettled(batch.map(t => fetchIndicator(t.s, PROXIES)));
+  const BATCH = 6, DELAY = 500;
+  for(let i = 0; i < interleaved.length; i += BATCH) {
+    const batch = interleaved.slice(i, i + BATCH);
+    await Promise.allSettled(batch.map((t, bIdx) => {
+      // Rotate proxy start per stock
+      const rotated = [...PROXY_BASES.slice((i+bIdx) % 4), ...PROXY_BASES.slice(0, (i+bIdx) % 4)];
+      return fetchIndicator(t.s, rotated);
+    }));
     loaded += batch.length;
     document.getElementById('scanStatus').textContent = `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
-    if(i + BATCH < STOCKS.length) await sleep(DELAY);
+    if(i + BATCH < interleaved.length) await sleep(DELAY);
   }
   document.getElementById('scanStatus').className = 'scan-status ok';
   document.getElementById('scanStatus').textContent = '✓ All indicators loaded';
@@ -761,25 +779,29 @@ async function fetchIndicator(sym, PROXIES) {
       // PRICE + CHG%: extract from this same Yahoo response
       // Yahoo meta.regularMarketPrice = accurate current/last price (split-adjusted)
       // Yahoo meta.chartPreviousClose = accurate prev close for chg% calculation
-      // This runs for ALL stocks regardless — overwrites any bad Finnhub price
+      // This runs for ALL stocks — overwrites bad Finnhub prices, fills ETF gaps
       {
         const meta = res.meta;
         const livePrice = (meta?.regularMarketPrice > 0 ? meta.regularMarketPrice : null)
                        || valid[valid.length - 1];
-        const prevClose = (meta?.chartPreviousClose > 0 ? meta.chartPreviousClose : null)
-                       || (meta?.previousClose > 0 ? meta.previousClose : null)
-                       || prices[sym]?.prevClose  // use Finnhub prevClose if we have it
+        // Prefer Yahoo prevClose over Finnhub — Yahoo is split-adjusted and works for ETFs
+        const yahooPrevClose = (meta?.chartPreviousClose > 0 ? meta.chartPreviousClose : null)
+                            || (meta?.previousClose > 0 ? meta.previousClose : null);
+        const prevClose = yahooPrevClose
+                       || prices[sym]?.prevClose  // Finnhub prevClose as fallback
                        || valid[valid.length - 2]
                        || valid[valid.length - 1];
         if(livePrice > 0 && prevClose > 0) {
           const chgPct = ((livePrice - prevClose) / prevClose * 100);
           const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
-          // Always overwrite price with Yahoo's split-adjusted value
+          const oldPrice = prices[sym]?.price;
+          // Always overwrite with Yahoo's accurate split-adjusted values
           prices[sym] = { price: livePrice, prevClose, chgPct: safeChg };
-          updatePriceCell(sym, livePrice, safeChg, prices[sym]?.price, getPriceLabel());
+          updatePriceCell(sym, livePrice, safeChg, oldPrice, getPriceLabel());
         } else if(livePrice > 0) {
-          prices[sym] = { ...prices[sym], price: livePrice };
-          updatePriceCell(sym, livePrice, prices[sym]?.chgPct || 0, undefined, getPriceLabel());
+          const oldPrice = prices[sym]?.price;
+          prices[sym] = { ...prices[sym], price: livePrice, prevClose: prevClose || livePrice };
+          updatePriceCell(sym, livePrice, prices[sym]?.chgPct || 0, oldPrice, getPriceLabel());
         }
       }
 
@@ -1088,11 +1110,20 @@ async function loadAllMRStats() {
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
-  const BATCH = 5, DELAY = 400;
-  for(let i = 0; i < STOCKS.length; i += BATCH) {
-    const batch = STOCKS.slice(i, i + BATCH);
+  // Interleave so ETFs get stats too
+  const stride = Math.ceil(STOCKS.length / 4);
+  const interleaved = [];
+  for(let offset = 0; offset < stride; offset++) {
+    for(let lane = 0; lane < 4; lane++) {
+      const idx = lane * stride + offset;
+      if(idx < STOCKS.length) interleaved.push(STOCKS[idx]);
+    }
+  }
+  const BATCH = 5, DELAY = 500;
+  for(let i = 0; i < interleaved.length; i += BATCH) {
+    const batch = interleaved.slice(i, i + BATCH);
     await Promise.allSettled(batch.map(t => calcMRStats(t, PROXIES)));
-    if(i + BATCH < STOCKS.length) await new Promise(r => setTimeout(r, DELAY));
+    if(i + BATCH < interleaved.length) await new Promise(r => setTimeout(r, DELAY));
   }
 }
 
