@@ -592,7 +592,7 @@ function startScan() {
 async function fetchAllPrices(key) {
   const st = document.getElementById('scanStatus');
   st.textContent = 'Loading prices…';
-  const BATCH = 8, DELAY = 250;
+  const BATCH = 5, DELAY = 500;
   for(let i = 0; i < STOCKS.length; i += BATCH) {
     const batch = STOCKS.slice(i, i + BATCH);
     await Promise.allSettled(batch.map(async t => {
@@ -623,6 +623,30 @@ async function fetchAllPrices(key) {
       } catch(e) {}
     }));
     if(i + BATCH < STOCKS.length) await sleep(DELAY);
+  }
+  // Retry pass — catch any that got rate-limited on first pass
+  await sleep(1000);
+  const missing = STOCKS.filter(t => !prices[t.s]?.price);
+  if(missing.length > 0) {
+    for(let i = 0; i < missing.length; i += 3) {
+      await Promise.allSettled(missing.slice(i, i+3).map(async t => {
+        try {
+          const r = await fetch(
+            `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.s)}&token=${key}`,
+            {signal: AbortSignal.timeout(7000)}
+          );
+          if(!r.ok) return;
+          const d = await r.json();
+          const pc = d.pc || 0, cp = d.c || 0;
+          if(pc <= 0 || cp <= 0) return;
+          const chgPct = (cp - pc) / pc * 100;
+          if(Math.abs(chgPct) > 25) { prices[t.s] = { ...prices[t.s], prevClose: pc }; return; }
+          prices[t.s] = { price: cp, prevClose: pc, chgPct };
+          updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
+        } catch(e) {}
+      }));
+      if(i + 3 < missing.length) await sleep(600);
+    }
   }
   savePrices();
   st.textContent = '✓ Prices loaded — connecting live feed…';
