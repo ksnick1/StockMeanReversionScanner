@@ -528,20 +528,17 @@ function restoreData() {
       const saved = JSON.parse(rp);
       Object.keys(saved).forEach(sym => {
         const p = saved[sym];
-        // Skip insane cached chgPct values (cache corruption guard)
-        if(Math.abs(Number(p.chgPct)||0) > 50) return; // only reject truly insane cached values
-        prices[sym] = p;
+        if(!p.price || p.price <= 0) return; // skip if no valid price
+        // Restore price from cache (useful), but CLEAR chg% — it's yesterday's value
+        // Fresh chg% will come from fetchPrevCloses + WS, or Yahoo indicators
+        prices[sym] = { price: p.price, prevClose: p.prevClose || 0, chgPct: null };
         const pEl = document.getElementById(`p-${sym}`);
         const cEl = document.getElementById(`c-${sym}`);
         const srcEl = document.getElementById(`src-${sym}`);
-        if(pEl && p.price) pEl.textContent = '$' + Number(p.price).toFixed(2);
-        // Mark as CACHED (yellow) so user knows it's not live yet
+        if(pEl) pEl.textContent = '$' + Number(p.price).toFixed(2);
         if(srcEl) { srcEl.textContent = 'CACHE'; srcEl.className = 'src-tag src-cached'; }
-        if(cEl) {
-          const chg = Number(p.chgPct) || 0;
-          cEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
-          cEl.className = 'chg ' + (chg > 0 ? 'pos' : chg < 0 ? 'neg' : 'neu');
-        }
+        // Show dashes for chg% until fresh data arrives
+        if(cEl) { cEl.textContent = '—'; cEl.className = 'chg neu'; }
       });
     }
     if(ri) {
@@ -603,22 +600,25 @@ async function fetchPrevCloses(key) {
         // Store both — current price shows immediately, prevClose enables chg%
         const pc = d.pc || 0;
         const cp = d.c || 0;
-        if(pc > 0) {
-          // Store prevClose always
-          prices[t.s] = { ...prices[t.s], prevClose: pc };
-          // If current price looks sane vs prevClose, paint it too
-          if(cp > 0) {
-            const chgPct = ((cp - pc) / pc * 100);
-            if(Math.abs(chgPct) <= 25) {
-              prices[t.s] = { price: cp, prevClose: pc, chgPct };
-              updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
-            } else {
-              // Price looks wrong (split-unadjusted) — store prevClose only
-              // WebSocket or Yahoo will paint the actual price
-              prices[t.s] = { prevClose: pc, chgPct: 0 };
-            }
+        // Only use Finnhub price if BOTH d.c and d.pc are valid and chg% is sane
+        // Finnhub free tier often returns stale/split-adjusted d.c values
+        // so we validate against d.pc before painting anything
+        if(pc > 0 && cp > 0) {
+          const chgPct = ((cp - pc) / pc * 100);
+          if(Math.abs(chgPct) <= 25) {
+            // Both look good — paint price and store prevClose for WS chg%
+            prices[t.s] = { price: cp, prevClose: pc, chgPct };
+            updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
+          } else {
+            // d.c looks wrong (split-unadjusted Finnhub data)
+            // Store prevClose only — Yahoo loadIndicators will paint price
+            prices[t.s] = { prevClose: pc };
           }
+        } else if(pc > 0) {
+          // Have prevClose but no current price — store for WS chg% calc
+          prices[t.s] = { prevClose: pc };
         }
+        // If pc=0 too, do nothing — Yahoo will handle price completely
       } catch(e) {}
     }));
     if(i + BATCH < STOCKS.length) await sleep(DELAY);
@@ -758,30 +758,28 @@ async function fetchIndicator(sym, PROXIES) {
       const ind = calcIndicators(valid);
       indics[sym] = ind;
 
-      // PRICE: extract from this same Yahoo response — one fetch, two jobs
-      // This guarantees ALL stocks get a price, no rate-limit cutoff at row 34
-      if(!prices[sym]?.price) {
+      // PRICE + CHG%: extract from this same Yahoo response
+      // Yahoo meta.regularMarketPrice = accurate current/last price (split-adjusted)
+      // Yahoo meta.chartPreviousClose = accurate prev close for chg% calculation
+      // This runs for ALL stocks regardless — overwrites any bad Finnhub price
+      {
         const meta = res.meta;
-        // Try regularMarketPrice first (live/delayed), fall back to last close
         const livePrice = (meta?.regularMarketPrice > 0 ? meta.regularMarketPrice : null)
-          || valid[valid.length-1];
-        // chartPreviousClose is the most reliable prevClose field in Yahoo meta
+                       || valid[valid.length - 1];
         const prevClose = (meta?.chartPreviousClose > 0 ? meta.chartPreviousClose : null)
-          || (meta?.previousClose > 0 ? meta.previousClose : null)
-          || valid[valid.length-2]
-          || valid[valid.length-1];
-        if(livePrice && livePrice > 0 && prevClose && prevClose > 0) {
+                       || (meta?.previousClose > 0 ? meta.previousClose : null)
+                       || prices[sym]?.prevClose  // use Finnhub prevClose if we have it
+                       || valid[valid.length - 2]
+                       || valid[valid.length - 1];
+        if(livePrice > 0 && prevClose > 0) {
           const chgPct = ((livePrice - prevClose) / prevClose * 100);
-          // 25% guard catches split-adjusted errors but allows big legitimate moves
-          if(Math.abs(chgPct) <= 25) {
-            prices[sym] = { price: livePrice, prevClose, chgPct };
-            updatePriceCell(sym, livePrice, chgPct, undefined, getPriceLabel());
-          } else {
-            // chgPct too large — use last close as price but skip chgPct
-            // This ensures price cell always gets populated even if chg% is suspect
-            prices[sym] = { price: valid[valid.length-1], prevClose, chgPct: 0 };
-            updatePriceCell(sym, valid[valid.length-1], 0, undefined, getPriceLabel());
-          }
+          const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
+          // Always overwrite price with Yahoo's split-adjusted value
+          prices[sym] = { price: livePrice, prevClose, chgPct: safeChg };
+          updatePriceCell(sym, livePrice, safeChg, prices[sym]?.price, getPriceLabel());
+        } else if(livePrice > 0) {
+          prices[sym] = { ...prices[sym], price: livePrice };
+          updatePriceCell(sym, livePrice, prices[sym]?.chgPct || 0, undefined, getPriceLabel());
         }
       }
 
