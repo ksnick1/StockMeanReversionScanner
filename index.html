@@ -567,143 +567,65 @@ function startScan() {
   if(!key) { alert('Please enter your Finnhub API key.'); return; }
   localStorage.setItem('finnhub_key', key);
   renderSkeleton();
-  // Step 1: fetch fresh prices from Yahoo v7/quote (accurate, split-adjusted)
-  // Step 2: connect WebSocket for live streaming on top
-  // Step 3: load indicators (RSI/BB/MA) from Yahoo 1y chart
-  // Step 4: load historical hit rates
+  // STRATEGY: One clear pipeline
+  // 1. fetchAllPrices: Finnhub /quote for ALL stocks (no CORS proxy, reliable, fast)
+  //    - Gets d.c (current price) + d.pc (prev close) directly
+  //    - Validates sanity, paints price + chg% immediately
+  // 2. connectWS: live stream on top (prevClose already set so chg% works)
+  // 3. loadIndicators: Yahoo 1y for RSI/BB/MA (indicators only, no price extraction)
+  // 4. loadAllMRStats: historical hit rates
   fetchAllPrices(key).then(() => connectWS(key));
   loadIndicators();
   loadAllMRStats();
 }
 
 // ══════════════════════════════════════════════════════
-// fetchAllPrices — uses Yahoo Finance v7/quote endpoint
-// Returns regularMarketPrice + regularMarketPreviousClose
-// These are FRESH, split-adjusted, works for stocks + ETFs
-// Batches symbols (10 at a time) through CORS proxies
-// Falls back to Finnhub candle if Yahoo fails
+// fetchAllPrices — Finnhub /quote for every stock
+// Direct call, no CORS proxy needed, very reliable.
+// Gets d.c (current/last price) + d.pc (previous close).
+// Finnhub d.c is sometimes split-unadjusted so we validate
+// chg% against d.pc — if >25% it looks like bad data, skip.
+// Batched 8 at a time, 250ms gap = all 70 stocks in ~2.5s.
+// Yahoo 1y indicators fetch will also paint price as backup
+// for any stocks Finnhub returns bad data for.
 // ══════════════════════════════════════════════════════
 async function fetchAllPrices(key) {
   const st = document.getElementById('scanStatus');
   st.textContent = 'Loading prices…';
-
-  const syms = STOCKS.map(t => t.s);
-  const BATCH = 10; // Yahoo v7/quote accepts multiple symbols per call
-  const PROXIES = [
-    ss => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
-    ss => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
-    ss => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
-    ss => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
-  ];
-
-  for(let i = 0; i < syms.length; i += BATCH) {
-    const batch = syms.slice(i, i + BATCH);
-    const symStr = batch.join(',');
-    let fetched = false;
-    for(const proxy of PROXIES) {
-      try {
-        const r = await fetch(proxy(symStr), {signal: AbortSignal.timeout(10000)});
-        if(!r.ok) continue;
-        let d = await r.json();
-        // allorigins wraps response in {contents: "..."} — unwrap if needed
-        if(typeof d?.contents === 'string') { try { d = JSON.parse(d.contents); } catch(e) { continue; } }
-        // Also handle {body: "..."} wrapper from some proxies
-        if(typeof d?.body === 'string') { try { d = JSON.parse(d.body); } catch(e) { continue; } }
-        const quotes = d?.quoteResponse?.result;
-        if(!quotes?.length) continue;
-        quotes.forEach(q => {
-          const sym = q.symbol;
-          const price = q.regularMarketPrice;
-          const prevClose = q.regularMarketPreviousClose;
-          if(!price || price <= 0) return;
-          if(!prevClose || prevClose <= 0) return;
-          // Always calculate chg% ourselves — don't trust the field (may be null/stale)
-          const calcChg = (price - prevClose) / prevClose * 100;
-          // 25% guard — but show 0% rather than skip entirely
-          const safeChg = Math.abs(calcChg) <= 25 ? calcChg : 0;
-          prices[sym] = { price, prevClose, chgPct: safeChg };
-          updatePriceCell(sym, price, safeChg, undefined, getPriceLabel());
-        });
-        fetched = true;
-        break;
-      } catch(e) {}
-    }
-    // If Yahoo failed this batch, fall back to Finnhub per-symbol
-    if(!fetched) {
-      await Promise.allSettled(batch.map(async sym => {
-        try {
-          const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${key}`, {signal: AbortSignal.timeout(6000)});
-          const d = await r.json();
-          const pc = d.pc || 0, cp = d.c || 0;
-          if(pc > 0 && cp > 0) {
-            const chgPct = (cp - pc) / pc * 100;
-            if(Math.abs(chgPct) <= 25) {
-              prices[sym] = { price: cp, prevClose: pc, chgPct };
-              updatePriceCell(sym, cp, chgPct, undefined, getPriceLabel());
-            }
-          }
-        } catch(e) {}
-      }));
-    }
-    if(i + BATCH < syms.length) await sleep(400);
-  }
-  savePrices();
-  st.textContent = '✓ Prices loaded — connecting live feed…';
-}
-
-// ══════════════════════════════════════════════════════
-// fetchPrevCloses — KEPT for compatibility but now unused
-// fetchAllPrices handles everything above
-// ══════════════════════════════════════════════════════
-async function fetchPrevCloses(key) { return fetchAllPrices(key); }
-// No CORS proxy needed. Fast small payload per symbol.
-// This is the ONLY thing we need from REST — WebSocket
-// handles all live prices. Without prevClose, chg% = broken.
-// Batched 8 at a time with 300ms gap = ~3s for 70 stocks.
-// ══════════════════════════════════════════════════════
-async function fetchPrevCloses(key) {
-  const st = document.getElementById('scanStatus');
-  st.textContent = 'Loading prev closes…';
-  const BATCH = 8, DELAY = 300;
+  const BATCH = 8, DELAY = 250;
   for(let i = 0; i < STOCKS.length; i += BATCH) {
     const batch = STOCKS.slice(i, i + BATCH);
     await Promise.allSettled(batch.map(async t => {
       try {
         const r = await fetch(
           `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(t.s)}&token=${key}`,
-          {signal: AbortSignal.timeout(6000)}
+          {signal: AbortSignal.timeout(7000)}
         );
         if(!r.ok) return;
         const d = await r.json();
-        // d.c = current price, d.pc = previous close
-        // Store both — current price shows immediately, prevClose enables chg%
         const pc = d.pc || 0;
-        const cp = d.c || 0;
-        // Only use Finnhub price if BOTH d.c and d.pc are valid and chg% is sane
-        // Finnhub free tier often returns stale/split-adjusted d.c values
-        // so we validate against d.pc before painting anything
-        if(pc > 0 && cp > 0) {
-          const chgPct = ((cp - pc) / pc * 100);
-          if(Math.abs(chgPct) <= 25) {
-            // Both look good — paint price and store prevClose for WS chg%
-            prices[t.s] = { price: cp, prevClose: pc, chgPct };
-            updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
-          } else {
-            // d.c looks wrong (split-unadjusted Finnhub data)
-            // Store prevClose only — Yahoo loadIndicators will paint price
-            prices[t.s] = { prevClose: pc };
-          }
-        } else if(pc > 0) {
-          // Have prevClose but no current price — store for WS chg% calc
-          prices[t.s] = { prevClose: pc };
+        const cp = d.c  || 0;
+        if(pc <= 0) return; // no prevClose = can't validate or calc chg%
+        if(cp <= 0) {
+          // Store prevClose only — Yahoo indicators will paint price
+          prices[t.s] = { ...prices[t.s], prevClose: pc };
+          return;
         }
-        // If pc=0 too, do nothing — Yahoo will handle price completely
+        const chgPct = (cp - pc) / pc * 100;
+        if(Math.abs(chgPct) > 25) {
+          // d.c looks split-unadjusted — store prevClose, let Yahoo paint price
+          prices[t.s] = { ...prices[t.s], prevClose: pc };
+          return;
+        }
+        // All good — paint price and chg%
+        prices[t.s] = { price: cp, prevClose: pc, chgPct };
+        updatePriceCell(t.s, cp, chgPct, undefined, getPriceLabel());
       } catch(e) {}
     }));
     if(i + BATCH < STOCKS.length) await sleep(DELAY);
   }
-  st.textContent = '✓ Ready — connecting live feed…';
   savePrices();
+  st.textContent = '✓ Prices loaded — connecting live feed…';
 }
 
 // ── SKELETON — preserves any cached prices already in DOM ──
@@ -801,43 +723,29 @@ function updatePriceCell(sym, price, chgPct, old, srcLabel) {
 // ── INDICATORS (Yahoo Finance via CORS proxy, fallback to Finnhub candles) ──
 async function loadIndicators() {
   document.getElementById('scanStatus').textContent = 'Loading indicators…';
-
-  // 4 proxies — rotate which one each stock hits first to spread load
-  const PROXY_BASES = [
+  const PROXIES = [
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
-
-  // Interleave fetch order: instead of [0,1,2,...,69] do [0,18,36,54, 1,19,37,55, ...]
-  // This ensures ETFs (positions 56-70) get fetched in the FIRST batch
-  const stride = Math.ceil(STOCKS.length / 4);
-  const interleaved = [];
-  for(let offset = 0; offset < stride; offset++) {
-    for(let lane = 0; lane < 4; lane++) {
-      const idx = lane * stride + offset;
-      if(idx < STOCKS.length) interleaved.push(STOCKS[idx]);
-    }
-  }
-
   let loaded = 0;
-  const BATCH = 6, DELAY = 500;
-  for(let i = 0; i < interleaved.length; i += BATCH) {
-    const batch = interleaved.slice(i, i + BATCH);
-    await Promise.allSettled(batch.map((t, bIdx) => {
-      // Rotate proxy start per stock
-      const rotated = [...PROXY_BASES.slice((i+bIdx) % 4), ...PROXY_BASES.slice(0, (i+bIdx) % 4)];
-      return fetchIndicator(t.s, rotated);
-    }));
+  const BATCH = 5, DELAY = 800;
+  for(let i = 0; i < STOCKS.length; i += BATCH) {
+    const batch = STOCKS.slice(i, i + BATCH);
+    // Rotate which proxy leads for each batch to spread load
+    const batchProxies = [...PROXIES.slice(i % 4), ...PROXIES.slice(0, i % 4)];
+    await Promise.allSettled(batch.map(t => fetchIndicator(t.s, batchProxies)));
     loaded += batch.length;
-    document.getElementById('scanStatus').textContent = `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
-    if(i + BATCH < interleaved.length) await sleep(DELAY);
+    document.getElementById('scanStatus').textContent =
+      `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
+    if(i + BATCH < STOCKS.length) await sleep(DELAY);
   }
   document.getElementById('scanStatus').className = 'scan-status ok';
-  document.getElementById('scanStatus').textContent = '✓ All indicators loaded';
+  document.getElementById('scanStatus').textContent = '✓ All data loaded';
   updateCounts();
 }
+
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
@@ -1172,22 +1080,15 @@ async function loadAllMRStats() {
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
-  // Interleave so ETFs get stats too
-  const stride = Math.ceil(STOCKS.length / 4);
-  const interleaved = [];
-  for(let offset = 0; offset < stride; offset++) {
-    for(let lane = 0; lane < 4; lane++) {
-      const idx = lane * stride + offset;
-      if(idx < STOCKS.length) interleaved.push(STOCKS[idx]);
-    }
-  }
-  const BATCH = 5, DELAY = 500;
-  for(let i = 0; i < interleaved.length; i += BATCH) {
-    const batch = interleaved.slice(i, i + BATCH);
-    await Promise.allSettled(batch.map(t => calcMRStats(t, PROXIES)));
-    if(i + BATCH < interleaved.length) await new Promise(r => setTimeout(r, DELAY));
+  const BATCH = 5, DELAY = 800;
+  for(let i = 0; i < STOCKS.length; i += BATCH) {
+    const batch = STOCKS.slice(i, i + BATCH);
+    const batchProxies = [...PROXIES.slice(i % 4), ...PROXIES.slice(0, i % 4)];
+    await Promise.allSettled(batch.map(t => calcMRStats(t, batchProxies)));
+    if(i + BATCH < STOCKS.length) await new Promise(r => setTimeout(r, DELAY));
   }
 }
+
 
 function calcRSIArr(closes) {
   const period = 14;
