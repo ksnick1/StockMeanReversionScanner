@@ -567,16 +567,91 @@ function startScan() {
   if(!key) { alert('Please enter your Finnhub API key.'); return; }
   localStorage.setItem('finnhub_key', key);
   renderSkeleton();
-  // Step 1+2: get prevCloses then start WS — chg% will work from first trade
-  fetchPrevCloses(key).then(() => connectWS(key));
-  // Step 3: indicators (Yahoo 1y — paints prices as bonus when it can)
+  // Step 1: fetch fresh prices from Yahoo v7/quote (accurate, split-adjusted)
+  // Step 2: connect WebSocket for live streaming on top
+  // Step 3: load indicators (RSI/BB/MA) from Yahoo 1y chart
+  // Step 4: load historical hit rates
+  fetchAllPrices(key).then(() => connectWS(key));
   loadIndicators();
-  // Step 4: hit rates
   loadAllMRStats();
 }
 
 // ══════════════════════════════════════════════════════
-// fetchPrevCloses — gets ONLY prevClose (d.pc) from Finnhub
+// fetchAllPrices — uses Yahoo Finance v7/quote endpoint
+// Returns regularMarketPrice + regularMarketPreviousClose
+// These are FRESH, split-adjusted, works for stocks + ETFs
+// Batches symbols (10 at a time) through CORS proxies
+// Falls back to Finnhub candle if Yahoo fails
+// ══════════════════════════════════════════════════════
+async function fetchAllPrices(key) {
+  const st = document.getElementById('scanStatus');
+  st.textContent = 'Loading prices…';
+
+  const syms = STOCKS.map(t => t.s);
+  const BATCH = 10; // Yahoo v7/quote accepts multiple symbols per call
+  const PROXIES = [
+    ss => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
+    ss => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
+    ss => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
+    ss => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v7/finance/quote?symbols=${ss}&fields=regularMarketPrice,regularMarketPreviousClose,regularMarketChangePercent`)}`,
+  ];
+
+  for(let i = 0; i < syms.length; i += BATCH) {
+    const batch = syms.slice(i, i + BATCH);
+    const symStr = batch.join(',');
+    let fetched = false;
+    for(const proxy of PROXIES) {
+      try {
+        const r = await fetch(proxy(symStr), {signal: AbortSignal.timeout(10000)});
+        if(!r.ok) continue;
+        const d = await r.json();
+        const quotes = d?.quoteResponse?.result;
+        if(!quotes?.length) continue;
+        quotes.forEach(q => {
+          const sym = q.symbol;
+          const price = q.regularMarketPrice;
+          const prevClose = q.regularMarketPreviousClose;
+          const chgPct = q.regularMarketChangePercent;
+          if(!price || price <= 0) return;
+          if(!prevClose || prevClose <= 0) return;
+          // Sanity check — reject if move looks like split data
+          const calcChg = (price - prevClose) / prevClose * 100;
+          if(Math.abs(calcChg) > 25) return;
+          prices[sym] = { price, prevClose, chgPct: chgPct || calcChg };
+          updatePriceCell(sym, price, chgPct || calcChg, undefined, getPriceLabel());
+        });
+        fetched = true;
+        break;
+      } catch(e) {}
+    }
+    // If Yahoo failed this batch, fall back to Finnhub per-symbol
+    if(!fetched) {
+      await Promise.allSettled(batch.map(async sym => {
+        try {
+          const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${key}`, {signal: AbortSignal.timeout(6000)});
+          const d = await r.json();
+          const pc = d.pc || 0, cp = d.c || 0;
+          if(pc > 0 && cp > 0) {
+            const chgPct = (cp - pc) / pc * 100;
+            if(Math.abs(chgPct) <= 25) {
+              prices[sym] = { price: cp, prevClose: pc, chgPct };
+              updatePriceCell(sym, cp, chgPct, undefined, getPriceLabel());
+            }
+          }
+        } catch(e) {}
+      }));
+    }
+    if(i + BATCH < syms.length) await sleep(400);
+  }
+  savePrices();
+  st.textContent = '✓ Prices loaded — connecting live feed…';
+}
+
+// ══════════════════════════════════════════════════════
+// fetchPrevCloses — KEPT for compatibility but now unused
+// fetchAllPrices handles everything above
+// ══════════════════════════════════════════════════════
+async function fetchPrevCloses(key) { return fetchAllPrices(key); }
 // No CORS proxy needed. Fast small payload per symbol.
 // This is the ONLY thing we need from REST — WebSocket
 // handles all live prices. Without prevClose, chg% = broken.
@@ -776,32 +851,15 @@ async function fetchIndicator(sym, PROXIES) {
       const ind = calcIndicators(valid);
       indics[sym] = ind;
 
-      // PRICE + CHG%: extract from this same Yahoo response
-      // Yahoo meta.regularMarketPrice = accurate current/last price (split-adjusted)
-      // Yahoo meta.chartPreviousClose = accurate prev close for chg% calculation
-      // This runs for ALL stocks — overwrites bad Finnhub prices, fills ETF gaps
-      {
-        const meta = res.meta;
-        const livePrice = (meta?.regularMarketPrice > 0 ? meta.regularMarketPrice : null)
-                       || valid[valid.length - 1];
-        // Prefer Yahoo prevClose over Finnhub — Yahoo is split-adjusted and works for ETFs
-        const yahooPrevClose = (meta?.chartPreviousClose > 0 ? meta.chartPreviousClose : null)
-                            || (meta?.previousClose > 0 ? meta.previousClose : null);
-        const prevClose = yahooPrevClose
-                       || prices[sym]?.prevClose  // Finnhub prevClose as fallback
-                       || valid[valid.length - 2]
-                       || valid[valid.length - 1];
-        if(livePrice > 0 && prevClose > 0) {
-          const chgPct = ((livePrice - prevClose) / prevClose * 100);
-          const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
-          const oldPrice = prices[sym]?.price;
-          // Always overwrite with Yahoo's accurate split-adjusted values
-          prices[sym] = { price: livePrice, prevClose, chgPct: safeChg };
-          updatePriceCell(sym, livePrice, safeChg, oldPrice, getPriceLabel());
-        } else if(livePrice > 0) {
-          const oldPrice = prices[sym]?.price;
-          prices[sym] = { ...prices[sym], price: livePrice, prevClose: prevClose || livePrice };
-          updatePriceCell(sym, livePrice, prices[sym]?.chgPct || 0, oldPrice, getPriceLabel());
+      // NOTE: We do NOT extract price from the 1y chart response here.
+      // The 1y chart meta.regularMarketPrice is cached/stale in Yahoo's CDN.
+      // fetchAllPrices() uses Yahoo v7/quote which returns fresh live prices.
+      // Here we only update the price cell if fetchAllPrices hasn't set one yet.
+      if(!prices[sym]?.price) {
+        const lastClose = valid[valid.length - 1];
+        if(lastClose > 0) {
+          prices[sym] = { ...prices[sym], price: lastClose };
+          updatePriceCell(sym, lastClose, prices[sym]?.chgPct || 0, undefined, getPriceLabel());
         }
       }
 
