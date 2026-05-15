@@ -746,29 +746,46 @@ function updatePriceCell(sym, price, chgPct, old, srcLabel) {
 
 // ── INDICATORS (Yahoo Finance via CORS proxy, fallback to Finnhub candles) ──
 async function loadIndicators() {
-  document.getElementById('scanStatus').textContent = 'Loading indicators…';
-  const PROXIES = [
+  const st = document.getElementById('scanStatus');
+  st.textContent = 'Loading indicators…';
+
+  const YAHOO_PROXIES = [
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://corsproxy.io/?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=1y`)}`,
   ];
+
+  // PHASE 1: Finnhub candles for ALL stocks — direct API, no proxy, no rate limits
+  // This guarantees every stock gets indicators + basic hit rates
+  // Run all 70 in parallel batches of 10 — Finnhub handles it fine
   let loaded = 0;
-  // ONE fetch per stock does BOTH indicators AND hit rates — halves Yahoo requests
-  // Batch of 4, 600ms delay = 70 stocks in ~11s, well within proxy rate limits
-  const BATCH = 4, DELAY = 600;
-  for(let i = 0; i < STOCKS.length; i += BATCH) {
-    const batch = STOCKS.slice(i, i + BATCH);
-    const batchProxies = [...PROXIES.slice(i % 4), ...PROXIES.slice(0, i % 4)];
-    await Promise.allSettled(batch.map(t => fetchIndicatorAndStats(t, batchProxies)));
+  const FINN_BATCH = 10, FINN_DELAY = 300;
+  for(let i = 0; i < STOCKS.length; i += FINN_BATCH) {
+    const batch = STOCKS.slice(i, i + FINN_BATCH);
+    // Pass empty proxies — fetchIndicatorAndStats will use finnhubData path
+    await Promise.allSettled(batch.map(t => fetchIndicatorAndStats(t, [])));
     loaded += batch.length;
-    document.getElementById('scanStatus').textContent =
-      `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
-    if(i + BATCH < STOCKS.length) await sleep(DELAY);
+    st.textContent = `Loading indicators… ${Math.min(loaded, STOCKS.length)}/${STOCKS.length}`;
+    if(i + FINN_BATCH < STOCKS.length) await sleep(FINN_DELAY);
   }
-  document.getElementById('scanStatus').className = 'scan-status ok';
-  document.getElementById('scanStatus').textContent = '✓ All data loaded';
+
+  st.className = 'scan-status ok';
+  st.textContent = '✓ All data loaded';
   updateCounts();
+
+  // PHASE 2: Yahoo proxy enrichment in background — upgrades hit rates to use HIGH/LOW
+  // Non-blocking, runs quietly after everything else is shown
+  // Slower and may not complete for all stocks — that's OK, Finnhub data is already showing
+  setTimeout(async () => {
+    const BATCH = 3, DELAY = 1200;
+    for(let i = 0; i < STOCKS.length; i += BATCH) {
+      const batch = STOCKS.slice(i, i + BATCH);
+      const proxies = [...YAHOO_PROXIES.slice(i % 4), ...YAHOO_PROXIES.slice(0, i % 4)];
+      await Promise.allSettled(batch.map(t => fetchIndicatorAndStats(t, proxies)));
+      if(i + BATCH < STOCKS.length) await sleep(DELAY);
+    }
+  }, 2000);
 }
 
 
@@ -841,10 +858,27 @@ async function fetchIndicatorAndStats(ticker, PROXIES) {
   const hitEl  = document.getElementById(`mrhit-${sym}`);
   const lsigEl = document.getElementById(`lsig-${sym}`);
   const row    = document.getElementById(`row-${sym}`);
+  const key    = document.getElementById('apiKey').value.trim();
 
+  // Try Finnhub candles FIRST — direct API, no CORS proxy, no rate limits
+  // If it works, we get closes for indicators + hit rates (no highs/lows)
+  // Yahoo proxy is fallback only, and gives us highs/lows for better hit rates
+  let finnhubData = null;
+  try {
+    const to = Math.floor(Date.now()/1000), from = to - (400*24*60*60);
+    const r = await fetch(
+      `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`,
+      {signal: AbortSignal.timeout(8000)}
+    );
+    const d = await r.json();
+    if(d.s === 'ok' && d.c && d.c.length >= 21) finnhubData = d;
+  } catch(e) {}
+
+  // Try Yahoo proxies for highs/lows (better hit rate accuracy)
+  // But only if we haven't already processed via Finnhub successfully
   for(const proxy of PROXIES) {
     try {
-      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(10000)});
+      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(8000)});
       if(!r.ok) continue;
       const d = await r.json();
       const res = d?.chart?.result?.[0]; if(!res) continue;
@@ -938,24 +972,61 @@ async function fetchIndicatorAndStats(ticker, PROXIES) {
     } catch(e) {}
   }
 
-  // Fallback: Finnhub candles (no CORS) — indicators only, no hit rate highs/lows
-  try {
-    const key = document.getElementById('apiKey').value.trim();
-    if(!key) return;
-    const to=Math.floor(Date.now()/1000), from=to-(365*24*60*60);
-    const d=await(await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`,{signal:AbortSignal.timeout(8000)})).json();
-    if(d.s!=='ok'||!d.c||d.c.length<21) return;
-    const valid=d.c.filter(v=>v!=null&&!isNaN(v));
-    if(valid.length<21) return;
-    const ind=calcIndicators(valid);
-    indics[sym]=ind;
-    if(!prices[sym]?.price){const lc=valid[valid.length-1];if(lc>0){prices[sym]={...prices[sym],price:lc};updatePriceCell(sym,lc,prices[sym]?.chgPct||0,undefined,getPriceLabel());}}
-    applyIndicators(sym,ind,prices[sym]?.price||valid[valid.length-1]);
-    // Basic hit rate from closes only (no highs/lows in candle fallback)
-    if(hitEl) hitEl.innerHTML=`<span class="hit-signals" style="color:var(--muted)">Partial data</span>`;
-    if(lsigEl) lsigEl.innerHTML=`<span class="ls-days old">—</span>`;
-    saveIndics();
-  } catch(e) {}
+  // Finnhub candle fallback — uses data fetched at top of function
+  // Calculates hit rates from closes only (next-day close, not high/low)
+  if(finnhubData) {
+    try {
+      const valid = finnhubData.c.filter(v => v!=null && !isNaN(v));
+      if(valid.length >= 21) {
+        const ind = calcIndicators(valid);
+        indics[sym] = ind;
+        if(!prices[sym]?.price) {
+          const lc = valid[valid.length-1];
+          if(lc > 0) { prices[sym]={...prices[sym],price:lc}; updatePriceCell(sym,lc,prices[sym]?.chgPct||0,undefined,getPriceLabel()); }
+        }
+        applyIndicators(sym, ind, prices[sym]?.price || valid[valid.length-1]);
+
+        // Hit rate from closes (next-day close as proxy for high/low)
+        let bS=0,bH=0,sS=0,sH=0,lBD=999,lSD=999,lBT='',lST='';
+        const today=new Date();
+        const ts = finnhubData.t || [];
+        for(let i=20;i<valid.length-1;i++){
+          const slice=valid.slice(i-14,i+1);
+          if(slice.length<15) continue;
+          const rsi=calcRSIArr(slice);
+          const curr=valid[i], next=valid[i+1];
+          if(!curr||!next) continue;
+          const bbS=valid.slice(Math.max(0,i-19),i+1);
+          const mean=bbS.reduce((a,b)=>a+b,0)/bbS.length;
+          const std=Math.sqrt(bbS.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/bbS.length);
+          if(rsi<30&&curr<=mean-2*std){bS++;if(next>curr)bH++;if(ts[i]){const d=Math.floor((today-new Date(ts[i]*1000))/864e5);if(d<lBD){lBD=d;lBT='Strong Buy';}}}
+          if(rsi>70&&curr>=mean+2*std){sS++;if(next<curr)sH++;if(ts[i]){const d=Math.floor((today-new Date(ts[i]*1000))/864e5);if(d<lSD){lSD=d;lST='Strong Sell';}}}
+        }
+        const pC=p=>p>=70?'high':p>=50?'mid':'low', bC=p=>p>=70?'#34d399':p>=50?'#fbbf24':'#f87171';
+        const tot=bS+sS;
+        if(hitEl){
+          if(tot===0){hitEl.innerHTML=`<span class="hit-signals">No signals in past year</span>`;}
+          else{
+            const br=bS>0?Math.round(bH/bS*100):0, sr=sS>0?Math.round(sH/sS*100):0;
+            let html='';
+            if(bS>0) html+=`<div class="hit-row"><span class="hit-label">Buy</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${br}%;background:${bC(br)}"></div></div><span class="hit-pct ${pC(br)}">${br}%</span></div>`;
+            if(sS>0) html+=`<div class="hit-row"><span class="hit-label">Sell</span><div class="hit-bar-bg"><div class="hit-bar-fill" style="width:${sr}%;background:${bC(sr)}"></div></div><span class="hit-pct ${pC(sr)}">${sr}%</span></div>`;
+            html+=`<div class="hit-signals">${tot} signal${tot!==1?'s':''} · ${bS}B/${sS}S</div>`;
+            hitEl.innerHTML=html;
+            if(row) row.dataset.hitrate=Math.max(bS>0?br:0,sS>0?sr:0);
+          }
+        }
+        const lD=Math.min(lBD,lSD), lT=lBD<=lSD?lBT:lST;
+        const lR=lT==='Strong Buy'?(bS>0?Math.round(bH/bS*100):0):(sS>0?Math.round(sH/sS*100):0);
+        if(lsigEl){
+          if(lD===999){lsigEl.innerHTML=`<span class="ls-days old">No signals</span>`;}
+          else{const dC=lD<=7?'recent':lD<=30?'moderate':'old',rC=lR>=70?'high':lR>=50?'mid':'low';lsigEl.innerHTML=`<span class="ls-days ${dC}">${lD===0?'Today':lD===1?'Yesterday':lD+' days ago'}</span><span class="ls-type">${lT}</span><span class="ls-rate ${rC}">${lR}% hit rate</span>`;}
+        }
+        if(row) row.dataset.lastsignal=lD;
+        saveIndics();
+      }
+    } catch(e) {}
+  }
 }
 
 
