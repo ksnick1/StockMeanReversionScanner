@@ -529,7 +529,7 @@ function restoreData() {
       Object.keys(saved).forEach(sym => {
         const p = saved[sym];
         // Skip insane cached chgPct values (cache corruption guard)
-        if(Math.abs(Number(p.chgPct)||0) > 25) return;
+        if(Math.abs(Number(p.chgPct)||0) > 50) return; // only reject truly insane cached values
         prices[sym] = p;
         const pEl = document.getElementById(`p-${sym}`);
         const cEl = document.getElementById(`c-${sym}`);
@@ -555,20 +555,24 @@ function restoreData() {
 }
 
 // ══════════════════════════════════════════════════════
-// startScan — loadIndicators now handles prices too
-// fetchIndicator extracts regularMarketPrice from the same
-// Yahoo response used for RSI/BB/MA — no separate price fetch,
-// no rate-limit cutoff, every stock gets a price guaranteed.
-// WebSocket layers live trades on top as they stream in.
+// startScan — two-phase price loading:
+// Phase 1: fetchClosingPrices (Yahoo 5d range, fast, ~6 per batch)
+//          → paints prices quickly as they arrive
+// Phase 2: loadIndicators (Yahoo 1y range, same fetch also grabs price)
+//          → fills any gaps + loads RSI/BB/MA
+// Phase 3: connectWS fires after Phase 1 completes so prevClose exists
+// Phase 4: loadAllMRStats (historical hit rates)
 // ══════════════════════════════════════════════════════
 function startScan() {
   const key = document.getElementById('apiKey').value.trim();
   if(!key) { alert('Please enter your Finnhub API key.'); return; }
   localStorage.setItem('finnhub_key', key);
   renderSkeleton();
-  // loadIndicators now fetches price AND indicators in one Yahoo call per stock
-  // connectWS streams live trades on top once prices/prevClose are populated
-  loadIndicators().then(() => connectWS(key));
+  // Phase 1+3: prices first, then WS
+  fetchClosingPrices(key).then(() => connectWS(key));
+  // Phase 2: indicators (also fills price gaps)
+  loadIndicators();
+  // Phase 4: hit rates
   loadAllMRStats();
 }
 
@@ -707,14 +711,25 @@ async function fetchIndicator(sym, PROXIES) {
       // This guarantees ALL stocks get a price, no rate-limit cutoff at row 34
       if(!prices[sym]?.price) {
         const meta = res.meta;
-        const livePrice = meta?.regularMarketPrice;
-        const prevClose = meta?.chartPreviousClose || meta?.previousClose
-          || valid[valid.length-2] || valid[valid.length-1];
-        if(livePrice && livePrice > 0) {
-          const chgPct = prevClose > 0 ? ((livePrice - prevClose) / prevClose * 100) : 0;
-          if(Math.abs(chgPct) <= 20) {
+        // Try regularMarketPrice first (live/delayed), fall back to last close
+        const livePrice = (meta?.regularMarketPrice > 0 ? meta.regularMarketPrice : null)
+          || valid[valid.length-1];
+        // chartPreviousClose is the most reliable prevClose field in Yahoo meta
+        const prevClose = (meta?.chartPreviousClose > 0 ? meta.chartPreviousClose : null)
+          || (meta?.previousClose > 0 ? meta.previousClose : null)
+          || valid[valid.length-2]
+          || valid[valid.length-1];
+        if(livePrice && livePrice > 0 && prevClose && prevClose > 0) {
+          const chgPct = ((livePrice - prevClose) / prevClose * 100);
+          // 25% guard catches split-adjusted errors but allows big legitimate moves
+          if(Math.abs(chgPct) <= 25) {
             prices[sym] = { price: livePrice, prevClose, chgPct };
             updatePriceCell(sym, livePrice, chgPct, undefined, getPriceLabel());
+          } else {
+            // chgPct too large — use last close as price but skip chgPct
+            // This ensures price cell always gets populated even if chg% is suspect
+            prices[sym] = { price: valid[valid.length-1], prevClose, chgPct: 0 };
+            updatePriceCell(sym, valid[valid.length-1], 0, undefined, getPriceLabel());
           }
         }
       }
@@ -740,10 +755,10 @@ async function fetchIndicator(sym, PROXIES) {
       const price = valid[valid.length-1];
       const prevClose = valid[valid.length-2] || price;
       const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
-      if(Math.abs(chgPct) <= 20) {
-        prices[sym] = { price, prevClose, chgPct };
-        updatePriceCell(sym, price, chgPct, undefined, getPriceLabel());
-      }
+      // Always paint price — if chg% looks wrong just show 0%
+      const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
+      prices[sym] = { price, prevClose, chgPct: safeChg };
+      updatePriceCell(sym, price, safeChg, undefined, getPriceLabel());
     }
     const currentPrice = prices[sym]?.price || valid[valid.length-1];
     applyIndicators(sym, ind, currentPrice);
@@ -1005,11 +1020,12 @@ function savePrices() { try { localStorage.setItem('mr_prices', JSON.stringify(p
 function saveIndics() { try { localStorage.setItem('mr_indics', JSON.stringify(indics)); } catch(e) {} }
 
 // ══════════════════════════════════════════════════════
-// fetchClosingPrices — uses Yahoo Finance as price source
-// Finnhub free tier returns pre-split/wrong prices for many
-// tickers (MU at $778, SPY at $748, etc). Yahoo is accurate.
-// We pull the last 2 closes from Yahoo: prevClose + today's
-// close/current price. WebSocket then layers live trades on top.
+// fetchClosingPrices — Phase 1 price loader
+// Uses Yahoo 5d range (lighter payload than 1y).
+// Rotates across 4 proxies to avoid rate limits.
+// Batch of 6, 600ms delay between batches.
+// Falls back to Finnhub candle if all proxies fail.
+// Always paints SOMETHING — never leaves WAIT on screen.
 // ══════════════════════════════════════════════════════
 async function fetchClosingPrices(key) {
   const st = document.getElementById('scanStatus');
@@ -1022,33 +1038,26 @@ async function fetchClosingPrices(key) {
     s => `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query2.finance.yahoo.com/v8/finance/chart/${s}?interval=1d&range=5d`)}`,
   ];
 
-  const BATCH = 6, DELAY = 500;
+  const BATCH = 6, DELAY = 600;
+  // Stagger proxy selection per stock to spread load across all 4 proxies
   for(let i = 0; i < STOCKS.length; i += BATCH) {
     const batch = STOCKS.slice(i, i + BATCH);
-    await Promise.allSettled(batch.map(async t => {
-      await fetchYahooPrice(t.s, PROXIES, key);
+    await Promise.allSettled(batch.map(async (t, bIdx) => {
+      // Rotate which proxy each stock hits first
+      const rotated = [...PROXIES.slice((i + bIdx) % PROXIES.length), ...PROXIES.slice(0, (i + bIdx) % PROXIES.length)];
+      await fetchYahooPrice(t.s, rotated, key);
     }));
     if(i + BATCH < STOCKS.length) await sleep(DELAY);
   }
 
-  // Retry anything still missing with Finnhub as last resort
-  await sleep(1000);
+  // Retry any still missing
+  await sleep(500);
   const missing = STOCKS.filter(t => !prices[t.s]?.price);
   if(missing.length > 0) {
     for(let i = 0; i < missing.length; i += 3) {
-      await Promise.allSettled(missing.slice(i, i+3).map(async t => {
-        try {
-          const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${t.s}&token=${key}`, {signal: AbortSignal.timeout(8000)});
-          if(!r.ok) return;
-          const d = await r.json();
-          if(!d || !d.c || d.c <= 0) return;
-          // Finnhub sanity check: reject if chg% would be insane (split-unadjusted)
-          const prevClose = d.pc || d.c;
-          const chgPct = prevClose > 0 ? ((d.c - prevClose) / prevClose * 100) : 0;
-          if(Math.abs(chgPct) > 15) return; // skip obviously wrong prices
-          prices[t.s] = { price: d.c, prevClose, chgPct };
-          updatePriceCell(t.s, d.c, chgPct, undefined, getPriceLabel());
-        } catch(e) {}
+      await Promise.allSettled(missing.slice(i, i+3).map(async (t, bIdx) => {
+        const rotated = [...PROXIES.slice((i + bIdx) % PROXIES.length), ...PROXIES.slice(0, (i + bIdx) % PROXIES.length)];
+        await fetchYahooPrice(t.s, rotated, key);
       }));
       if(i + 3 < missing.length) await sleep(800);
     }
@@ -1058,54 +1067,57 @@ async function fetchClosingPrices(key) {
   st.textContent = '✓ Prices loaded — connecting live feed…';
 }
 
+
 async function fetchYahooPrice(sym, PROXIES, key) {
   for(const proxy of PROXIES) {
     try {
-      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(8000)});
+      const r = await fetch(proxy(sym), {signal: AbortSignal.timeout(10000)});
       if(!r.ok) continue;
       const d = await r.json();
       const res = d?.chart?.result?.[0];
       if(!res) continue;
 
       const closes = res.indicators?.quote?.[0]?.close;
-      const timestamps = res.timestamp;
-      if(!closes || closes.length < 2) continue;
+      if(!closes || closes.length < 1) continue;
+      const validCloses = closes.filter(c => c != null && c > 0);
+      if(!validCloses.length) continue;
 
-      // Get the last two valid closing prices
-      const validCloses = closes.map((c, i) => ({c, t: timestamps?.[i]})).filter(x => x.c != null && x.c > 0);
-      if(validCloses.length < 1) continue;
-
-      // Use meta for real-time price if available (Yahoo provides regularMarketPrice)
       const meta = res.meta;
-      const livePrice = meta?.regularMarketPrice || validCloses[validCloses.length-1].c;
-      const prevClose = meta?.chartPreviousClose || meta?.previousClose || validCloses[Math.max(0, validCloses.length-2)].c || livePrice;
+      // regularMarketPrice = live/delayed current price during market hours
+      // chartPreviousClose = previous session close (most reliable prevClose field)
+      const livePrice = (meta?.regularMarketPrice > 0 ? meta.regularMarketPrice : null)
+                     || validCloses[validCloses.length - 1];
+      const prevClose = (meta?.chartPreviousClose > 0 ? meta.chartPreviousClose : null)
+                     || (meta?.previousClose > 0 ? meta.previousClose : null)
+                     || validCloses[validCloses.length - 2]
+                     || validCloses[validCloses.length - 1];
 
       if(!livePrice || livePrice <= 0) continue;
 
-      const chgPct = prevClose > 0 ? ((livePrice - prevClose) / prevClose * 100) : 0;
-
-      // Sanity check — skip if chg% is insane (sign of bad data)
-      if(Math.abs(chgPct) > 20) continue;
-
-      prices[sym] = { price: livePrice, prevClose, chgPct };
-      updatePriceCell(sym, livePrice, chgPct, undefined, getPriceLabel());
-      return; // success — stop trying proxies
+      const chgPct = (prevClose > 0) ? ((livePrice - prevClose) / prevClose * 100) : 0;
+      // Use safe chg% — cap at 25% to filter split-adjusted data errors
+      // But ALWAYS paint the price so cell never stays WAIT/CACHE
+      const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
+      prices[sym] = { price: livePrice, prevClose: prevClose || livePrice, chgPct: safeChg };
+      updatePriceCell(sym, livePrice, safeChg, undefined, getPriceLabel());
+      return; // success
     } catch(e) {}
   }
 
-  // Final fallback: Finnhub candle (last close only, with sanity check)
+  // Final fallback: Finnhub candle — always paints something
   try {
     const to = Math.floor(Date.now()/1000);
     const from = to - (7 * 24 * 60 * 60);
-    const d = await (await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`, {signal: AbortSignal.timeout(8000)})).json();
-    if(d.s !== 'ok' || !d.c || d.c.length < 2) return;
-    const price = d.c[d.c.length-1];
-    const prevClose = d.c[d.c.length-2];
+    const r = await fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${key}`, {signal: AbortSignal.timeout(10000)});
+    const d = await r.json();
+    if(d.s !== 'ok' || !d.c || !d.c.length) return;
+    const price = d.c[d.c.length - 1];
+    const prevClose = d.c.length > 1 ? d.c[d.c.length - 2] : price;
     if(!price || price <= 0) return;
     const chgPct = prevClose > 0 ? ((price - prevClose) / prevClose * 100) : 0;
-    if(Math.abs(chgPct) > 20) return;
-    prices[sym] = { price, prevClose, chgPct };
-    updatePriceCell(sym, price, chgPct, undefined, getPriceLabel());
+    const safeChg = Math.abs(chgPct) <= 25 ? chgPct : 0;
+    prices[sym] = { price, prevClose, chgPct: safeChg };
+    updatePriceCell(sym, price, safeChg, undefined, getPriceLabel());
   } catch(e) {}
 }
 
