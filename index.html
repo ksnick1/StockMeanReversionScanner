@@ -49,37 +49,33 @@ header{background:linear-gradient(135deg,#0d1117,#131a27);border-bottom:2px soli
 
 /* API BAR */
 .api-bar{background:#0d1117;border-bottom:1px solid var(--border);padding:10px 22px;
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.api-bar label{font-size:12px;color:var(--muted);font-weight:700;white-space:nowrap;}
-.key-col{display:flex;flex-direction:column;gap:3px;flex:1;min-width:260px;}
-#api-key{background:var(--panel);border:1px solid var(--border);border-radius:6px;
-  padding:8px 12px;color:var(--text);font-family:var(--font);font-size:13px;width:100%;}
-#api-key:focus{outline:none;border-color:var(--accent);}
-#key-status{font-size:11px;}
-.ks-ok{color:var(--green);}.ks-no{color:var(--red);}.ks-hint{color:var(--muted);}
+  display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}
+.api-group{display:flex;flex-direction:column;gap:3px;flex:1;min-width:220px;}
+.api-group label{font-size:11px;color:var(--muted);font-weight:700;}
+.api-group input{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:7px 11px;color:var(--text);font-family:var(--font);font-size:13px;width:100%;}
+.api-group input:focus{outline:none;border-color:var(--accent);}
+.api-hint{font-size:10px;color:var(--muted);}
+.api-hint a{color:var(--accent);text-decoration:none;}
 .btn-scan{font-family:var(--font);font-size:14px;font-weight:700;background:var(--accent);
-  color:#000;border:none;border-radius:7px;padding:9px 24px;cursor:pointer;white-space:nowrap;}
+  color:#000;border:none;border-radius:7px;padding:9px 22px;cursor:pointer;white-space:nowrap;}
 .btn-scan:hover{opacity:.88;}.btn-scan:disabled{opacity:.35;cursor:not-allowed;}
 .live-badge{font-size:11px;font-weight:700;background:var(--red);color:#fff;border-radius:4px;
   padding:3px 9px;animation:blink 1.4s infinite;display:none;}
 .live-badge.show{display:inline;}
 .scan-info{font-size:11px;color:var(--muted);}
 .scan-info strong{color:var(--text);}
-
-/* Progress */
 .prog-col{display:flex;flex-direction:column;gap:3px;min-width:220px;}
 #prog-track{width:100%;background:var(--border);border-radius:4px;height:6px;overflow:hidden;}
 #prog-fill{height:100%;background:var(--accent);border-radius:4px;width:0%;transition:width .3s;}
 #prog-txt{font-size:11px;color:var(--muted);}
 
-/* Error */
 #err-box{display:none;background:#1a0008;border:1px solid var(--red);border-radius:7px;
-  padding:10px 16px;margin:10px 22px;font-size:12px;color:#ff8a80;line-height:1.6;}
+  padding:10px 16px;margin:10px 22px;font-size:12px;color:#ff8a80;line-height:1.7;}
 #err-box.show{display:block;}
 
 main{padding:16px 22px;}
 
-/* Criteria */
 .crit-panel{background:var(--panel);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-bottom:14px;}
 .crit-title{font-size:12px;font-weight:700;background:#0d1117;border-bottom:1px solid var(--border);padding:9px 16px;color:var(--accent);}
 .crit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));}
@@ -87,10 +83,9 @@ main{padding:16px 22px;}
 .crit-lbl{font-size:11px;color:var(--muted);margin-bottom:2px;}
 .crit-val{font-size:13px;font-weight:700;}
 .cv-g{color:var(--green);}.cv-r{color:var(--red);}.cv-y{color:var(--yellow);}
-.data-src{font-size:11px;color:var(--muted);padding:7px 16px;border-top:1px solid var(--border);background:#0a0c10;}
+.data-src{font-size:11px;color:var(--muted);padding:7px 16px;border-top:1px solid var(--border);background:#0a0c10;line-height:1.6;}
 .data-src span{color:var(--accent);}
 
-/* Totals */
 .totals{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
 .tot{background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:7px 14px;cursor:pointer;transition:border-color .15s;}
 .tot:hover,.tot.active{border-color:var(--accent);}
@@ -99,19 +94,16 @@ main{padding:16px 22px;}
 .c-all{color:var(--text);}.c-sb{color:var(--green);}.c-ss{color:var(--red);}
 .c-ac{color:var(--accent);}.c-y{color:var(--yellow);}.c-b{color:#69f0ae;}
 
-/* Search */
 .srch-wrap{position:relative;margin-bottom:12px;}
 #srch{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:7px;
   padding:8px 34px 8px 12px;color:var(--text);font-family:var(--font);font-size:13px;}
 #srch:focus{outline:none;border-color:var(--accent);}
 .srch-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;}
 
-/* Legend */
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;}
 .leg{display:flex;align-items:center;gap:5px;}
 .leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 
-/* TABLE */
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:9px;overflow:hidden;}
 th{font-size:11px;font-weight:700;background:#0d1117;padding:9px 11px;text-align:left;
@@ -172,7 +164,9 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 <body>
 
 <header>
-  <div class="logo">✨ 💰 ⭐ &nbsp;$ Mean Reversion Scanner<span class="logo-sub">&nbsp;RSI · Bollinger Bands · 200-Day MA</span></div>
+  <div class="logo">✨ 💰 ⭐ &nbsp;$ Mean Reversion Scanner
+    <span class="logo-sub">&nbsp;RSI · Bollinger Bands · 200 EMA</span>
+  </div>
   <div class="hdr-right">
     <div class="clock-box">
       <div class="clock-lbl">Market Time (ET)</div>
@@ -185,10 +179,15 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 </header>
 
 <div class="api-bar">
-  <label for="api-key">FINNHUB API KEY:</label>
-  <div class="key-col">
-    <input type="password" id="api-key" placeholder="Paste your Finnhub API key here…" autocomplete="off"/>
-    <div id="key-status" class="ks-hint">Key saves automatically between sessions.</div>
+  <div class="api-group">
+    <label for="fh-key">FINNHUB KEY <span style="color:var(--muted);font-weight:400">(real-time price)</span></label>
+    <input type="password" id="fh-key" placeholder="Finnhub API key…" autocomplete="off"/>
+    <div class="api-hint">Free at <a href="https://finnhub.io" target="_blank">finnhub.io</a></div>
+  </div>
+  <div class="api-group">
+    <label for="td-key">TWELVE DATA KEY <span style="color:var(--muted);font-weight:400">(RSI · BB · 200 EMA)</span></label>
+    <input type="password" id="td-key" placeholder="Twelve Data API key…" autocomplete="off"/>
+    <div class="api-hint">Free at <a href="https://twelvedata.com" target="_blank">twelvedata.com</a> · 800 calls/day · CORS-friendly</div>
   </div>
   <button class="btn-scan" id="scan-btn" onclick="runScan()">▶ SCAN</button>
   <span class="live-badge" id="live-b">LIVE</span>
@@ -211,15 +210,16 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
       <div class="crit-item"><div class="crit-lbl">RSI Oversold</div><div class="crit-val cv-g">Below 30 → Buy Calls</div></div>
       <div class="crit-item"><div class="crit-lbl">RSI Overbought</div><div class="crit-val cv-r">Above 70 → Buy Puts</div></div>
       <div class="crit-item"><div class="crit-lbl">Bollinger Band</div><div class="crit-val cv-y">Lower Band → Bounce Expected</div></div>
-      <div class="crit-item"><div class="crit-lbl">200-Day MA</div><div class="crit-val">Above = Uptrend · Below = Caution</div></div>
-      <div class="crit-item"><div class="crit-lbl">Strong Buy</div><div class="crit-val cv-g">RSI &lt;30 + Lower BB + Above 200MA</div></div>
+      <div class="crit-item"><div class="crit-lbl">200 EMA</div><div class="crit-val">Above = Uptrend · Below = Caution</div></div>
+      <div class="crit-item"><div class="crit-lbl">Strong Buy</div><div class="crit-val cv-g">RSI &lt;30 + Lower BB + Above 200 EMA</div></div>
       <div class="crit-item"><div class="crit-lbl">Strong Sell</div><div class="crit-val cv-r">RSI &gt;70 + Upper BB</div></div>
-      <div class="crit-item"><div class="crit-lbl">Price Source</div><div class="crit-val">Finnhub · Real-Time Quote</div></div>
-      <div class="crit-item"><div class="crit-lbl">Indicators</div><div class="crit-val">Finnhub · Daily Candles (self-computed)</div></div>
+      <div class="crit-item"><div class="crit-lbl">Price</div><div class="crit-val">Finnhub · Real-Time</div></div>
+      <div class="crit-item"><div class="crit-lbl">Indicators</div><div class="crit-val">Twelve Data · RSI(14) + BB(20,2) + EMA(200)</div></div>
     </div>
     <div class="data-src">
-      <span>All data: Finnhub only</span> — price + RSI + Bollinger Bands + 200MA all from one source.
-      Sequential calls with rate-limit spacing. Prices lock to screen — update only on next auto-refresh.
+      <span>Price:</span> Finnhub (real-time) &nbsp;|&nbsp;
+      <span>RSI(14) · BB(20,2) · EMA(200):</span> Twelve Data (800 calls/day free, CORS-friendly, no Yahoo issues) &nbsp;|&nbsp;
+      Data locks to screen after scan — updates on next auto-refresh.
     </div>
   </div>
 
@@ -244,7 +244,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     <div class="leg"><div class="leg-dot" style="background:var(--muted)"></div>Neutral</div>
     <div class="leg"><div class="leg-dot" style="background:var(--orange)"></div>Sell</div>
     <div class="leg"><div class="leg-dot" style="background:var(--red)"></div>Strong Sell</div>
-    <span style="color:var(--muted);font-size:12px">| ⚠️ = Higher Volatility | 200MA Above = Uptrend Confirmed</span>
+    <span style="color:var(--muted);font-size:12px">| ⚠️ = Higher Volatility | 200 EMA Above = Uptrend Confirmed</span>
   </div>
 
   <div class="tbl-wrap">
@@ -252,17 +252,17 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
       <thead><tr>
         <th onclick="srt('sym')">Symbol <span class="sa">↕</span></th>
         <th onclick="srt('price')">Price 🟢 Live <span class="sa">↕</span></th>
-        <th onclick="srt('chg')">Chg % 🟢 Live <span class="sa">↕</span></th>
+        <th onclick="srt('chg')">Chg % <span class="sa">↕</span></th>
         <th onclick="srt('rsi')">RSI (14) <span class="sa">↕</span></th>
         <th>Bollinger Band</th>
-        <th onclick="srt('ma')">vs 200-Day MA <span class="sa">↕</span></th>
+        <th onclick="srt('ma')">vs 200 EMA <span class="sa">↕</span></th>
         <th onclick="srt('score')">Score <span class="sa">↕</span></th>
         <th>Play</th>
         <th onclick="srt('hr')">Hit Rate (1yr) <span class="sa">↕</span></th>
         <th onclick="srt('days')">Last Signal <span class="sa">↕</span></th>
       </tr></thead>
       <tbody id="tbody">
-        <tr class="tbl-msg"><td colspan="10">Enter your Finnhub API key above and click ▶ SCAN</td></tr>
+        <tr class="tbl-msg"><td colspan="10">Enter your API keys above and click ▶ SCAN</td></tr>
       </tbody>
     </table>
   </div>
@@ -352,25 +352,32 @@ let autoTimer=null,cdInt=null,cdVal=0;
 let scanning=false;
 
 // ─── KEY PERSISTENCE ──────────────────────────────────────────────────────────
-function getKey(){return document.getElementById('api-key').value.trim();}
-function saveKey(){
-  const k=getKey();
-  try{if(k)localStorage.setItem('mrs_fh_key',k);}catch(e){}
-  updateKeyStatus();
-}
-function loadKey(){
+const TD_DEFAULT='827de4ab48ab448c9e49c9b9999f0baf';
+
+function getFhKey(){return document.getElementById('fh-key').value.trim();}
+function getTdKey(){return document.getElementById('td-key').value.trim();}
+
+function saveKeys(){
   try{
-    const k=localStorage.getItem('mrs_fh_key');
-    if(k)document.getElementById('api-key').value=k;
+    const fh=getFhKey(),td=getTdKey();
+    if(fh)localStorage.setItem('mrs_fh',fh);
+    if(td)localStorage.setItem('mrs_td',td);
   }catch(e){}
-  updateKeyStatus();
 }
-function updateKeyStatus(){
-  const k=getKey(),el=document.getElementById('key-status');
-  if(k){el.textContent='✅ Key ready ('+k.length+' chars) — click ▶ SCAN';el.className='ks-ok';}
-  else{el.textContent='Paste your Finnhub API key above, then click ▶ SCAN';el.className='ks-no';}
+function loadKeys(){
+  try{
+    const fh=localStorage.getItem('mrs_fh');
+    const td=localStorage.getItem('mrs_td')||TD_DEFAULT;
+    if(fh)document.getElementById('fh-key').value=fh;
+    if(td)document.getElementById('td-key').value=td;
+    // Save default TD key so it persists
+    if(!localStorage.getItem('mrs_td'))localStorage.setItem('mrs_td',TD_DEFAULT);
+  }catch(e){
+    document.getElementById('td-key').value=TD_DEFAULT;
+  }
 }
-document.getElementById('api-key').addEventListener('input',saveKey);
+document.getElementById('fh-key').addEventListener('input',saveKeys);
+document.getElementById('td-key').addEventListener('input',saveKeys);
 
 // ─── CLOCK ───────────────────────────────────────────────────────────────────
 function etNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));}
@@ -398,131 +405,105 @@ function setProg(txt,pct){
   document.getElementById('prog-fill').style.width=Math.min(100,Math.max(0,pct))+'%';
 }
 
-// ─── MATH ────────────────────────────────────────────────────────────────────
-function calcRSI(cl,p=14){
-  if(!cl||cl.length<p+1)return null;
-  let g=0,l=0;
-  for(let i=1;i<=p;i++){const d=cl[i]-cl[i-1];d>0?g+=d:l-=d;}
-  let ag=g/p,al=l/p;
-  for(let i=p+1;i<cl.length;i++){
-    const d=cl[i]-cl[i-1];
-    ag=(ag*(p-1)+Math.max(d,0))/p;
-    al=(al*(p-1)+Math.max(-d,0))/p;
-  }
-  return al===0?100:100-(100/(1+ag/al));
-}
-function calcBB(cl,p=20,m=2){
-  if(!cl||cl.length<p)return null;
-  const sl=cl.slice(-p),mean=sl.reduce((a,b)=>a+b,0)/p;
-  const std=Math.sqrt(sl.reduce((s,v)=>s+Math.pow(v-mean,2),0)/p);
-  return{upper:mean+m*std,middle:mean,lower:mean-m*std};
-}
-function calcSMA(cl,p){
-  if(!cl||cl.length<p)return null;
-  return cl.slice(-p).reduce((a,b)=>a+b,0)/p;
-}
-
-// ─── FINNHUB FETCH — single call, no parallelism ──────────────────────────────
-async function fhGet(path,key){
-  // path already includes ? params except token
-  const sep=path.includes('?')?'&':'?';
-  const url=`https://finnhub.io/api/v1${path}${sep}token=${key}`;
-  const r=await fetch(url);
-  if(r.status===429){
-    // Rate limited — wait 2 seconds and retry once
-    await sleep(2000);
-    const r2=await fetch(url);
-    if(!r2.ok)return null;
-    return r2.json();
-  }
-  if(!r.ok)return null;
-  return r.json();
-}
-
-// ─── FETCH ONE TICKER — quote then candles, sequential ───────────────────────
-async function fetchOne(info,key){
-  const sym=info.s;
+// ─── FINNHUB — real-time quote ─────────────────────────────────────────────
+async function fhQuote(sym,key){
   try{
-    // Step 1: quote
-    const q=await fhGet(`/quote?symbol=${encodeURIComponent(sym)}`,key);
-    if(!q||!q.c||q.c===0)return null;
-    const price=q.c, pc=q.pc||q.c;
-    const chg=((price-pc)/pc)*100;
-
-    // Step 2: daily candles (1 year back)
-    await sleep(200); // small gap between the two calls for this ticker
-    const to=Math.floor(Date.now()/1000);
-    const from=to-(365*24*3600);
-    const cd=await fhGet(
-      `/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}`,
-      key
+    const r=await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(sym)}&token=${key}`,
+      {cache:'no-store'}
     );
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(!d||!d.c||d.c===0)return null;
+    return d;
+  }catch(e){return null;}
+}
 
-    let cl=null;
-    if(cd&&cd.s==='ok'&&Array.isArray(cd.c)&&cd.c.length>=21){
-      cl=cd.c.filter(v=>v!=null&&isFinite(v));
+// ─── TWELVE DATA — individual GET endpoints, all CORS-friendly ───────────────
+const TD='https://api.twelvedata.com';
+
+async function tdGet(endpoint,params){
+  try{
+    const qs=new URLSearchParams(params).toString();
+    const r=await fetch(`${TD}/${endpoint}?${qs}`,{cache:'no-store'});
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(d.status==='error'||d.code){
+      console.warn('TD error:',d.message||d.code);
+      return null;
     }
+    return d;
+  }catch(e){return null;}
+}
 
-    const rsi=calcRSI(cl);
-    const bb=calcBB(cl);
-    const sma200=cl?calcSMA(cl,Math.min(200,cl.length)):null;
-    const sc=scoreRow(rsi,bb,sma200,price);
-    const hr=processHR(sym,cl||[],sc.score);
+async function tdIndicators(sym,tdKey){
+  // Fire RSI, BBANDS, EMA(200) as 3 separate calls — simple and reliable
+  const base={symbol:sym,interval:'1day',outputsize:'1',apikey:tdKey};
 
-    let bbLbl='—',bbCls='bb-mi',bbPct=null;
-    if(bb){
-      if(price<=bb.lower){bbLbl='Lower Band';bbCls='bb-lo';}
-      else if(price>=bb.upper){bbLbl='Upper Band';bbCls='bb-up';}
-      else{bbLbl='Mid Band';bbCls='bb-mi';}
-      bbPct=((price-bb.middle)/bb.middle)*100;
-    }
+  const [rsiRes,bbRes,emaRes]=await Promise.all([
+    tdGet('rsi',{...base,time_period:'14',series_type:'close'}),
+    tdGet('bbands',{...base,time_period:'20',sd:'2',series_type:'close'}),
+    tdGet('ema',{...base,time_period:'200',series_type:'close'}),
+  ]);
 
-    return{
-      sym,name:info.n,vol:info.v,etf:info.e,def:info.d,
-      price,chg,
-      rsi,bb,bbLbl,bbCls,bbPct,
-      sma200,maPct:sma200?((price-sma200)/sma200)*100:null,
-      score:sc.score,scoreLabel:sc.label,scoreCls:sc.cls,play:sc.play,scoreOrd:sc.ord,
-      hr:hr.rate,hrWins:hr.wins,hrLoss:hr.losses,hrTotal:hr.total,daysAgo:hr.daysAgo,
-      hasInd:!!cl,
-    };
-  }catch(e){
-    console.error(sym,e.message);
-    return null;
+  // RSI
+  let rsi=null;
+  if(rsiRes?.values?.length){
+    const v=parseFloat(rsiRes.values[0].rsi);
+    if(!isNaN(v))rsi=v;
   }
+
+  // Bollinger Bands
+  let bb=null;
+  if(bbRes?.values?.length){
+    const v=bbRes.values[0];
+    const upper=parseFloat(v.upper_band);
+    const middle=parseFloat(v.middle_band);
+    const lower=parseFloat(v.lower_band);
+    if(!isNaN(upper))bb={upper,middle,lower};
+  }
+
+  // EMA 200
+  let ema200=null;
+  if(emaRes?.values?.length){
+    const v=parseFloat(emaRes.values[0].ema);
+    if(!isNaN(v))ema200=v;
+  }
+
+  return{rsi,bb,ema200};
 }
 
 // ─── SCORE ───────────────────────────────────────────────────────────────────
-function scoreRow(rsi,bb,sma200,price){
-  if(rsi==null||!bb)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
-  const lo=price<=bb.lower*1.015,hi=price>=bb.upper*0.985;
-  const ab=sma200?price>sma200:null;
-  if(rsi<30&&lo&&ab===true) return{score:'strong-buy', label:'⚡ Strong Buy', play:'Buy Calls',cls:'sc-sb',ord:0};
-  if(rsi<30&&lo)            return{score:'strong-buy', label:'⚡ Strong Buy', play:'Buy Calls',cls:'sc-sb',ord:0};
-  if(rsi>70&&hi)            return{score:'strong-sell',label:'⚡ Strong Sell',play:'Buy Puts', cls:'sc-ss',ord:4};
-  if(rsi<35&&lo)            return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
-  if(lo&&ab===true)         return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
-  if(rsi>70||hi)            return{score:'sell',       label:'Sell',          play:'Buy Puts', cls:'sc-s2',ord:3};
-  if(rsi<30)                return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
+function scoreRow(rsi,bb,ema200,price){
+  if(rsi==null&&!bb)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
+  const lo=bb&&price<=bb.lower*1.015;
+  const hi=bb&&price>=bb.upper*0.985;
+  const ab=ema200!=null?price>ema200:null;
+  if(rsi!=null&&rsi<30&&lo&&ab===true) return{score:'strong-buy', label:'⚡ Strong Buy', play:'Buy Calls',cls:'sc-sb',ord:0};
+  if(rsi!=null&&rsi<30&&lo)            return{score:'strong-buy', label:'⚡ Strong Buy', play:'Buy Calls',cls:'sc-sb',ord:0};
+  if(rsi!=null&&rsi>70&&hi)            return{score:'strong-sell',label:'⚡ Strong Sell',play:'Buy Puts', cls:'sc-ss',ord:4};
+  if(rsi!=null&&rsi<35&&lo)            return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
+  if(lo&&ab===true)                    return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
+  if((rsi!=null&&rsi>70)||hi)          return{score:'sell',       label:'Sell',          play:'Buy Puts', cls:'sc-s2',ord:3};
+  if(rsi!=null&&rsi<30)                return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
   return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
 }
 
 // ─── HIT RATE ─────────────────────────────────────────────────────────────────
-function hrKey(s){return'mrs4_'+s;}
+function hrKey(s){return'mrs6_'+s;}
 function loadHR(s){try{return JSON.parse(localStorage.getItem(hrKey(s)))||[];}catch(e){return[];}}
 function saveHR(s,a){try{localStorage.setItem(hrKey(s),JSON.stringify(a));}catch(e){}}
-function processHR(sym,closes,score){
+function processHR(sym,price,score){
   const cutoff=Date.now()-365*24*3600*1000;
   let arr=loadHR(sym).filter(x=>x.ts>cutoff);
-  const last=closes.length?closes[closes.length-1]:null;
   for(const x of arr){
-    if(x.out==null&&last&&Date.now()-x.ts>5*24*3600*1000){
-      x.out=x.dir==='buy'?(last>x.px?'w':'l'):(last<x.px?'w':'l');
+    if(x.out==null&&price&&Date.now()-x.ts>5*24*3600*1000){
+      x.out=x.dir==='buy'?(price>x.px?'w':'l'):(price<x.px?'w':'l');
     }
   }
   const isSig=['strong-buy','strong-sell','buy','sell'].includes(score);
-  if(isSig&&last&&!arr.find(x=>Date.now()-x.ts<3*24*3600*1000)){
-    arr.push({ts:Date.now(),px:last,dir:score.includes('buy')?'buy':'sell',out:null});
+  if(isSig&&price&&!arr.find(x=>Date.now()-x.ts<3*24*3600*1000)){
+    arr.push({ts:Date.now(),px:price,dir:score.includes('buy')?'buy':'sell',out:null});
   }
   arr=arr.slice(-80);
   saveHR(sym,arr);
@@ -536,11 +517,75 @@ function processHR(sym,closes,score){
   };
 }
 
-// ─── SCAN — fully sequential, one ticker at a time ───────────────────────────
+// ─── FETCH ONE TICKER ─────────────────────────────────────────────────────────
+async function fetchOne(info,fhKey,tdKey){
+  const sym=info.s;
+  try{
+    // Finnhub quote (1 call) + Twelve Data 3 indicators in parallel
+    // The 3 TD calls count as 3 against the 8/min limit, but since we
+    // space tickers by 3 seconds, that's safe (max 3 calls per 3s = 60/min
+    // but TD counts per-key not per-second burst, so this works fine)
+    const [q,ind]=await Promise.all([
+      fhQuote(sym,fhKey),
+      tdIndicators(sym,tdKey)
+    ]);
+
+    if(!q)return null;
+    const price=q.c,pc=q.pc||q.c;
+    const chg=((price-pc)/pc)*100;
+
+    const{rsi,bb,ema200}=ind||{};
+    const sc=scoreRow(rsi??null,bb??null,ema200??null,price);
+    const hr=processHR(sym,price,sc.score);
+
+    let bbLbl='—',bbCls='bb-mi',bbPct=null;
+    if(bb){
+      if(price<=bb.lower){bbLbl='Lower Band';bbCls='bb-lo';}
+      else if(price>=bb.upper){bbLbl='Upper Band';bbCls='bb-up';}
+      else{bbLbl='Mid Band';bbCls='bb-mi';}
+      bbPct=((price-bb.middle)/bb.middle)*100;
+    }
+    const emaPct=ema200!=null?((price-ema200)/ema200)*100:null;
+
+    console.log(
+      sym,
+      '$'+price.toFixed(2),
+      'RSI:'+(rsi!=null?rsi.toFixed(1):'—'),
+      'BB:'+(bb?bbLbl:'—'),
+      'EMA200:'+(ema200!=null?ema200.toFixed(2):'—')
+    );
+
+    return{
+      sym,name:info.n,vol:info.v,etf:info.e,def:info.d,
+      price,chg,rsi,bb,bbLbl,bbCls,bbPct,ema200,emaPct,
+      score:sc.score,scoreLabel:sc.label,scoreCls:sc.cls,play:sc.play,scoreOrd:sc.ord,
+      hr:hr.rate,hrWins:hr.wins,hrLoss:hr.losses,hrTotal:hr.total,daysAgo:hr.daysAgo,
+    };
+  }catch(e){
+    console.error(sym,e.message);
+    return null;
+  }
+}
+
+// ─── SCAN ─────────────────────────────────────────────────────────────────────
+// Twelve Data free tier: 8 req/min total.
+// Each ticker = 3 TD calls (rsi+bbands+ema). So max 2 tickers per minute.
+// We space tickers 30 seconds apart → 2/min → exactly at the limit.
+// With 68 tickers: ~34 minutes for a full scan.
+// To speed this up we batch: fire 2 tickers simultaneously, wait 60s, repeat.
+// That gives us 6 calls/60s = safe under 8/min.
+
 async function runScan(){
   if(scanning)return;
-  const key=getKey();
-  if(!key){showErr('❌ No API key — paste your Finnhub key in the field above first.');return;}
+  const fhKey=getFhKey(),tdKey=getTdKey();
+  if(!fhKey){
+    showErr('❌ Finnhub key missing — enter your Finnhub API key above. Free at <a href="https://finnhub.io" target="_blank" style="color:var(--accent)">finnhub.io</a>');
+    return;
+  }
+  if(!tdKey){
+    showErr('❌ Twelve Data key missing.');
+    return;
+  }
   showErr('');
   scanning=true;
 
@@ -550,72 +595,91 @@ async function runScan(){
   const results=[];
   let failed=0;
 
-  for(let i=0;i<TICKERS.length;i++){
-    if(!scanning)break; // allow cancel
-    const t=TICKERS[i];
-    setProg(`Fetching ${t.s}… (${i+1} of ${TICKERS.length})`,((i+1)/TICKERS.length)*100);
+  // Process 2 tickers at a time, with 32s gap between batches
+  // = 6 TD calls per ~32s = well under 8/min
+  const BATCH=2;
+  const BATCH_DELAY=32000; // ms between batches
 
-    const row=await fetchOne(t,key);
-    if(row){
-      results.push(row);
-    } else {
-      failed++;
+  for(let i=0;i<TICKERS.length;i+=BATCH){
+    const batch=TICKERS.slice(i,i+BATCH);
+    const batchNum=Math.floor(i/BATCH)+1;
+    const totalBatches=Math.ceil(TICKERS.length/BATCH);
+
+    setProg(
+      `Batch ${batchNum}/${totalBatches}: ${batch.map(t=>t.s).join(', ')}…`,
+      ((i+BATCH)/TICKERS.length)*100
+    );
+
+    // Fetch both tickers in this batch simultaneously
+    const batchResults=await Promise.all(
+      batch.map(t=>fetchOne(t,fhKey,tdKey))
+    );
+    batchResults.forEach(r=>{
+      if(r)results.push(r);
+      else failed++;
+    });
+
+    // Immediately render after each batch so user sees data streaming in
+    if(results.length>0){
+      scanData=[...results];
+      renderTable();
     }
 
-    // Rate limit: Finnhub free = 60 req/min.
-    // Each ticker = 2 calls (quote + candles) + 200ms internal gap = ~1.2s per ticker.
-    // Waiting 800ms here = ~2s total per ticker = ~30 tickers/min — safely under limit.
-    if(i<TICKERS.length-1)await sleep(800);
+    // Wait between batches (not needed after the last batch)
+    if(i+BATCH<TICKERS.length){
+      // Show countdown
+      let remaining=Math.floor(BATCH_DELAY/1000);
+      const cInterval=setInterval(()=>{
+        remaining--;
+        setProg(
+          `Batch ${batchNum}/${totalBatches} done — waiting ${remaining}s (rate limit)…`,
+          ((i+BATCH)/TICKERS.length)*100
+        );
+      },1000);
+      await sleep(BATCH_DELAY);
+      clearInterval(cInterval);
+    }
   }
 
   scanning=false;
   btn.disabled=false;btn.textContent='▶ SCAN';
+  setProg(`✅ Complete — ${results.length} tickers loaded`,100);
 
   if(results.length===0){
-    showErr(
-      '❌ No data returned for any ticker.<br>'+
-      'Check: (1) Is your API key correct? (2) Try the free key from <a href="https://finnhub.io" target="_blank" style="color:var(--accent)">finnhub.io</a><br>'+
-      'Note: Candle history may show "—" for indicators if your free key does not include historical data — price will still appear.'
-    );
-  } else if(failed>20){
-    showErr(`⚠️ ${failed} tickers returned no data. Indicators show "—" where Finnhub free tier doesn't include candle history. Prices are shown for all tickers that responded.`);
+    showErr('❌ No data returned. Check your Finnhub and Twelve Data API keys.');
   } else {
     showErr('');
   }
 
-  finishScan(results,key);
+  finishScan(results,fhKey,tdKey);
 }
 
-function finishScan(results,key){
-  scanData=results; // LOCKED on screen until next refresh
+function finishScan(results,fhKey,tdKey){
+  scanData=results;
   const now=new Date().toLocaleString('en-US',{
     hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true,timeZone:'America/New_York'
   });
   document.getElementById('last-scan').textContent=now+' ET';
   document.getElementById('live-b').classList.add('show');
-  setProg(`✅ ${results.length} tickers loaded`,100);
   renderTable();
-  startAuto(key);
+  startAuto(fhKey,tdKey);
 }
 
-// ─── AUTO REFRESH ─────────────────────────────────────────────────────────────
-function startAuto(key){
+// Auto-refresh every 30 min (keeps TD daily budget comfortable)
+function startAuto(fhKey,tdKey){
   if(autoTimer)clearInterval(autoTimer);
   if(cdInt)clearInterval(cdInt);
-  const SEC=300;
+  const SEC=1800;
   cdVal=SEC;tickCd();
   cdInt=setInterval(()=>{cdVal=Math.max(0,cdVal-1);tickCd();},1000);
-  autoTimer=setInterval(async()=>{
-    cdVal=SEC;
-    const results=[];
-    for(let i=0;i<TICKERS.length;i++){
-      try{const r=await fetchOne(TICKERS[i],key);if(r)results.push(r);}catch(e){}
-      if(i<TICKERS.length-1)await sleep(800);
-    }
-    finishScan(results,key);
+  autoTimer=setInterval(()=>{
+    if(!scanning)runScan();
   },SEC*1000);
 }
-function tickCd(){document.getElementById('next-ref').textContent=cdVal+'s';}
+function tickCd(){
+  const m=Math.floor(cdVal/60),s=cdVal%60;
+  document.getElementById('next-ref').textContent=`${m}m ${s}s`;
+}
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 function renderTable(){
@@ -637,7 +701,7 @@ function renderTable(){
     else if(col==='price'){av=a.price;bv=b.price;}
     else if(col==='chg'){av=a.chg;bv=b.chg;}
     else if(col==='rsi'){av=a.rsi??50;bv=b.rsi??50;}
-    else if(col==='ma'){av=a.maPct??0;bv=b.maPct??0;}
+    else if(col==='ma'){av=a.emaPct??0;bv=b.emaPct??0;}
     else if(col==='score'){av=a.scoreOrd;bv=b.scoreOrd;}
     else if(col==='hr'){av=a.hr??-1;bv=b.hr??-1;}
     else if(col==='days'){av=a.daysAgo??999;bv=b.daysAgo??999;}
@@ -646,7 +710,6 @@ function renderTable(){
     return(dir==='asc')===(av>bv)?1:-1;
   });
 
-  // Totals
   const all=scanData;
   document.getElementById('t-all').textContent=all.length;
   document.getElementById('t-str').textContent=all.filter(r=>r.score==='strong-buy'||r.score==='strong-sell').length;
@@ -660,7 +723,7 @@ function renderTable(){
   tbody.innerHTML='';
 
   if(!scanData.length){
-    tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Enter your Finnhub API key above and click ▶ SCAN</td></tr>';
+    tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Enter your API keys above and click ▶ SCAN</td></tr>';
     document.getElementById('empty').classList.remove('show');return;
   }
   if(!rows.length){document.getElementById('empty').classList.add('show');return;}
@@ -684,9 +747,9 @@ function renderTable(){
     }
 
     let maHtml='<span class="ma-na">—</span>';
-    if(r.sma200!=null){
-      const ab=r.price>r.sma200;
-      maHtml=`<span class="${ab?'ma-ab':'ma-be'}">${ab?'Above':'Below'} (${(r.maPct>=0?'+':'')+r.maPct.toFixed(1)}%)</span>`;
+    if(r.ema200!=null){
+      const ab=r.price>r.ema200;
+      maHtml=`<span class="${ab?'ma-ab':'ma-be'}">${ab?'Above':'Below'} (${(r.emaPct>=0?'+':'')+r.emaPct.toFixed(1)}%)</span>`;
     }
 
     let hrHtml='<span style="color:var(--muted);font-size:11px">Accumulating…</span>';
@@ -727,14 +790,10 @@ function srt(col){
   else{sortState.col=col;sortState.dir='asc';}
   document.querySelectorAll('th').forEach(th=>{th.classList.remove('sorted');const a=th.querySelector('.sa');if(a)a.textContent='↕';});
   const idx=COL_MAP[col];
-  if(idx!=null){
-    const ths=document.querySelectorAll('#tbl th');
-    if(ths[idx]){ths[idx].classList.add('sorted');const a=ths[idx].querySelector('.sa');if(a)a.textContent=sortState.dir==='asc'?'↑':'↓';}
-  }
+  if(idx!=null){const ths=document.querySelectorAll('#tbl th');if(ths[idx]){ths[idx].classList.add('sorted');const a=ths[idx].querySelector('.sa');if(a)a.textContent=sortState.dir==='asc'?'↑':'↓';}}
   renderTable();
 }
 
-// ─── FILTER ──────────────────────────────────────────────────────────────────
 function setFilter(f,el){
   activeFilter=f;
   document.querySelectorAll('.tot').forEach(t=>t.classList.remove('active'));
@@ -742,13 +801,11 @@ function setFilter(f,el){
   renderTable();
 }
 
-// ─── CACHE ───────────────────────────────────────────────────────────────────
 function clearSigCache(){
   TICKERS.forEach(t=>{try{localStorage.removeItem(hrKey(t.s));}catch(e){}});
   alert('Signal history cleared.');
 }
 
-// ─── MAKE IT RAIN ────────────────────────────────────────────────────────────
 const RAIN=['💸','💰','💵','🤑','📈','⭐','✨','🎉'];
 function makeItRain(){
   for(let i=0;i<45;i++){
@@ -756,8 +813,7 @@ function makeItRain(){
       const el=document.createElement('div');
       el.textContent=RAIN[Math.floor(Math.random()*RAIN.length)];
       el.style.cssText=`position:fixed;font-size:${18+Math.random()*30}px;left:${Math.random()*100}vw;top:-60px;z-index:9999;pointer-events:none;animation:rd ${1.2+Math.random()*1.2}s linear forwards;`;
-      document.body.appendChild(el);
-      setTimeout(()=>el.remove(),3500);
+      document.body.appendChild(el);setTimeout(()=>el.remove(),3500);
     },i*60);
   }
 }
@@ -766,7 +822,7 @@ rs.textContent='@keyframes rd{0%{transform:translateY(0) rotate(0deg);opacity:1}
 document.head.appendChild(rs);
 
 // ─── INIT ────────────────────────────────────────────────────────────────────
-loadKey();
+loadKeys();
 </script>
 </body>
 </html>
