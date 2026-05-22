@@ -268,7 +268,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     </div>
     <div class="data-src">
       <span>Price:</span> Finnhub real-time, refreshes every 5 min &nbsp;|&nbsp;
-      <span>RSI(14) · BB(20,2) · EMA(200):</span> Twelve Data 15-min intraday candles via batch API, refreshes every 15 min &nbsp;|&nbsp;
+      <span>RSI(14) · BB(20,2) · EMA(200):</span> Twelve Data 15-min intraday candles, 2 symbols fetched in parallel per rate-limit window, refreshes every 15 min &nbsp;|&nbsp;
       <span>EOD:</span> Final candle after 4:15 PM ET gives definitive close signals — rows flash 🔔 on new triggers
     </div>
   </div>
@@ -334,7 +334,6 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 
 <script>
 // ─── DEFAULT TICKERS ──────────────────────────────────────────────────────────
-// v=volatile/caution, e=ETF, d=defensive
 const DEFAULT_TICKERS=[
   {s:'AAPL',n:'Apple Inc.',v:0,e:0,d:0},{s:'MSFT',n:'Microsoft Corp.',v:0,e:0,d:0},
   {s:'NVDA',n:'NVIDIA Corp.',v:0,e:0,d:0},{s:'AMD',n:'Advanced Micro Devices',v:0,e:0,d:0},
@@ -373,36 +372,20 @@ const DEFAULT_TICKERS=[
   {s:'IBIT',n:'iShares Bitcoin Trust',v:1,e:1,d:0},{s:'BRK-B',n:'Berkshire Hathaway B',v:0,e:0,d:0},
 ];
 
-// ─── WATCHLIST (default + custom additions) ───────────────────────────────────
-let CUSTOM_TICKERS=[]; // {s, n, v, e, d, custom:true}
-function loadCustomTickers(){
-  try{return JSON.parse(localStorage.getItem('mrs_custom'))||[];}catch(e){return[];}
-}
-function saveCustomTickers(){
-  try{localStorage.setItem('mrs_custom',JSON.stringify(CUSTOM_TICKERS));}catch(e){}
-}
-function getTickers(){
-  return [...DEFAULT_TICKERS,...CUSTOM_TICKERS];
-}
+// ─── WATCHLIST ────────────────────────────────────────────────────────────────
+let CUSTOM_TICKERS=[];
+function loadCustomTickers(){try{return JSON.parse(localStorage.getItem('mrs_custom'))||[];}catch(e){return[];}}
+function saveCustomTickers(){try{localStorage.setItem('mrs_custom',JSON.stringify(CUSTOM_TICKERS));}catch(e){}}
+function getTickers(){return[...DEFAULT_TICKERS,...CUSTOM_TICKERS];}
 
-// Add ticker function — called by + Add button
 async function addTicker(){
   const inp=document.getElementById('add-sym');
   const sym=inp.value.trim().toUpperCase().replace(/[^A-Z0-9\-\.]/g,'');
   if(!sym){inp.focus();return;}
   const all=getTickers();
-  if(all.find(t=>t.s===sym)){
-    showErr('⚠️ '+sym+' is already in your watchlist.');
-    inp.value='';return;
-  }
-  // Add it immediately so it appears in manage list
+  if(all.find(t=>t.s===sym)){showErr('⚠️ '+sym+' is already in your watchlist.');inp.value='';return;}
   const newT={s:sym,n:sym,v:0,e:0,d:0,custom:true};
-  CUSTOM_TICKERS.push(newT);
-  saveCustomTickers();
-  inp.value='';
-  showErr('');
-
-  // Try to fetch a name from Finnhub if key available
+  CUSTOM_TICKERS.push(newT);saveCustomTickers();inp.value='';showErr('');
   const fhKey=getFhKey();
   if(fhKey){
     try{
@@ -410,63 +393,36 @@ async function addTicker(){
       if(r.ok){const d=await r.json();if(d&&d.name){newT.n=d.name;saveCustomTickers();}}
     }catch(e){}
   }
-
-  // If scan is already done, fetch this ticker's data and append
   if(scanData.length>0){
     const tdKey=getTdKey();
     if(fhKey&&tdKey){
       setProg('Fetching '+sym+'…',100);
       const useEOD=isAfterClose();
-      const[pData,ind]=await Promise.all([fhQuote(sym,fhKey),tdIndicators(sym,tdKey,useEOD)]);
+      const[pData,ind]=await Promise.all([fhQuote(sym,fhKey),tdIndicatorsSingle(sym,tdKey,useEOD)]);
       if(pData){
-        const sc=scoreRow(ind?.rsi??null,ind?.bb??null,ind?.ema200??null,pData.price);
-        const hr=processHR(sym,pData.price,sc.score);
-        let bbLbl='—',bbCls='bb-mi',bbPct=null;
-        if(ind?.bb){const bb=ind.bb;if(pData.price<=bb.lower){bbLbl='Lower Band';bbCls='bb-lo';}else if(pData.price>=bb.upper){bbLbl='Upper Band';bbCls='bb-up';}else{bbLbl='Mid Band';bbCls='bb-mi';}bbPct=((pData.price-bb.middle)/bb.middle)*100;}
-        const emaPct=ind?.ema200!=null?((pData.price-ind.ema200)/ind.ema200)*100:null;
-        scanData.push({
-          sym,name:newT.n,vol:0,etf:0,def:0,
-          price:pData.price,chg:pData.chg,
-          rsi:ind?.rsi??null,bb:ind?.bb??null,bbLbl,bbCls,bbPct,
-          ema200:ind?.ema200??null,emaPct,
-          score:sc.score,scoreLabel:sc.label,scoreCls:sc.cls,play:sc.play,scoreOrd:sc.ord,
-          hr:hr.rate,hrWins:hr.wins,hrLoss:hr.losses,hrTotal:hr.total,daysAgo:hr.daysAgo,
-          indStatus:useEOD?'eod':ind?.rsi!=null?'live':'none',isNewSignal:false,
-        });
-        renderTable();
+        const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null},useEOD);
+        scanData.push(row);renderTable();
         setProg('✅ '+sym+' added',100);
       }else{
         showErr('⚠️ Could not fetch data for '+sym+'. Check the symbol and try again.');
-        CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);
-        saveCustomTickers();
+        CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
       }
-    }else{
-      // Keys not ready — just show it will scan next time
-      showErr('');
     }
   }
   renderTable();
 }
 
-// Remove ticker from custom list (can only remove custom ones from manage modal)
 function removeTicker(sym){
-  CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);
-  saveCustomTickers();
-  scanData=scanData.filter(r=>r.sym!==sym);
-  renderManageModal();
-  renderTable();
+  CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
+  scanData=scanData.filter(r=>r.sym!==sym);renderManageModal();renderTable();
 }
-
-// Manage modal
 function openManageModal(){renderManageModal();document.getElementById('manage-modal').classList.add('show');}
 function closeManageModal(){document.getElementById('manage-modal').classList.remove('show');}
 function renderManageModal(){
-  const all=getTickers();
-  const list=document.getElementById('modal-ticker-list');
+  const all=getTickers(),list=document.getElementById('modal-ticker-list');
   list.innerHTML='';
   all.forEach(t=>{
-    const tag=document.createElement('span');
-    tag.className='ticker-tag'+(t.custom?' custom':'');
+    const tag=document.createElement('span');tag.className='ticker-tag'+(t.custom?' custom':'');
     tag.innerHTML=t.s+(t.custom?'<button class="rm-btn" title="Remove" onclick="removeTicker(\''+t.s+'\')">✕</button>':'');
     list.appendChild(tag);
   });
@@ -484,7 +440,7 @@ let eodDone=false;
 let prevScores={};
 let newSignals=new Set();
 
-// ─── KEYS ────────────────────────────────────────────────────────────────────
+// ─── KEYS ─────────────────────────────────────────────────────────────────────
 const TD_DEFAULT='827de4ab48ab448c9e49c9b9999f0baf';
 function getFhKey(){return document.getElementById('fh-key').value.trim();}
 function getTdKey(){return document.getElementById('td-key').value.trim();}
@@ -513,7 +469,7 @@ function updateKeyStatus(){
 document.getElementById('fh-key').addEventListener('input',saveKeys);
 document.getElementById('td-key').addEventListener('input',saveKeys);
 
-// ─── CLOCK ───────────────────────────────────────────────────────────────────
+// ─── CLOCK ────────────────────────────────────────────────────────────────────
 function etNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));}
 function isMarketOpen(){const et=etNow(),day=et.getDay(),tot=et.getHours()*60+et.getMinutes();return day>=1&&day<=5&&tot>=9*60+30&&tot<16*60;}
 function isAfterClose(){const et=etNow(),day=et.getDay(),tot=et.getHours()*60+et.getMinutes();return day>=1&&day<=5&&tot>=16*60+15;}
@@ -530,14 +486,14 @@ function updateClock(){
 }
 setInterval(updateClock,1000);updateClock();
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function showErr(msg){const el=document.getElementById('err-box');if(msg){el.innerHTML=msg;el.classList.add('show');}else{el.innerHTML='';el.classList.remove('show');}}
 function setProg(txt,pct){document.getElementById('prog-txt').textContent=txt;document.getElementById('prog-fill').style.width=Math.min(100,Math.max(0,pct))+'%';}
 function fmtTime(){return new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true,timeZone:'America/New_York'})+' ET';}
 function fmtCd(s){return s>60?Math.floor(s/60)+'m '+s%60+'s':s+'s';}
 
-// ─── SCORE ───────────────────────────────────────────────────────────────────
+// ─── SCORE ────────────────────────────────────────────────────────────────────
 function scoreRow(rsi,bb,ema200,price){
   if(rsi==null&&!bb)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
   const lo=bb&&price<=bb.lower*1.015,hi=bb&&price>=bb.upper*0.985,ab=ema200!=null?price>ema200:null;
@@ -551,7 +507,7 @@ function scoreRow(rsi,bb,ema200,price){
   return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
 }
 
-// ─── HIT RATE ────────────────────────────────────────────────────────────────
+// ─── HIT RATE ─────────────────────────────────────────────────────────────────
 function hrKey(s){return'mrs8_'+s;}
 function loadHR(s){try{return JSON.parse(localStorage.getItem(hrKey(s)))||[];}catch(e){return[];}}
 function saveHR(s,a){try{localStorage.setItem(hrKey(s),JSON.stringify(a));}catch(e){}}
@@ -566,25 +522,7 @@ function processHR(sym,price,score){
   return{rate:scored.length?Math.round(wins/scored.length*100):null,wins,losses:scored.length-wins,total:scored.length,daysAgo:lastSig?Math.floor((Date.now()-lastSig.ts)/(24*3600*1000)):null};
 }
 
-// ─── FINNHUB — batch quotes ───────────────────────────────────────────────────
-// Fetch up to 30 quotes at once using Finnhub's batch endpoint
-// Falls back to individual quotes if batch fails
-async function fhQuoteBatch(syms,key){
-  const results={};
-  // Finnhub doesn't have a true multi-quote endpoint for free tier;
-  // use parallel requests with staggered starts (1s apart, 60/min limit)
-  const chunks=[];
-  for(let i=0;i<syms.length;i+=30)chunks.push(syms.slice(i,i+30));
-  for(const chunk of chunks){
-    await Promise.all(chunk.map(async(sym,idx)=>{
-      await sleep(idx*200); // stagger within chunk to stay under 60/min
-      const q=await fhQuote(sym,key);
-      if(q)results[sym]=q;
-    }));
-  }
-  return results;
-}
-
+// ─── FINNHUB ──────────────────────────────────────────────────────────────────
 async function fhQuote(sym,key){
   try{
     const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+key,{cache:'no-store'});
@@ -595,109 +533,83 @@ async function fhQuote(sym,key){
   }catch(e){return null;}
 }
 
-// ─── TWELVE DATA — BATCH endpoint ────────────────────────────────────────────
-// KEY OPTIMIZATION: Use TD's /batch_indicators or chain endpoint
-// /complex_data sends ONE request and returns RSI + BB + EMA for a batch of symbols
-// Free tier: 8 req/min. Each batch call = 1 request for up to 8 symbols.
-// That means 8 symbols per 1 request → can process ~8 symbols per 7.5s gap
-// vs old method: 3 req per symbol → 1 symbol per 22.5s gap
-// SPEEDUP: ~8x faster scan
+// ─── TWELVE DATA — CORRECT SINGLE-SYMBOL FETCH ───────────────────────────────
+// TD free tier does NOT support comma-separated symbols for indicator endpoints.
+// Each indicator call (rsi, bbands, ema) is per-symbol.
+// Free tier: 8 requests/minute.
+// Each symbol needs 3 calls → we run 2 symbols in parallel (6 calls) per window,
+// then wait to stay safely under 8 req/min.
+// 72 tickers ÷ 2 per window = 36 windows × ~8s gap = ~5 min total.
+// Rows appear progressively as each pair completes.
 
 const TD_BASE='https://api.twelvedata.com';
-
-// Process a batch of up to 8 symbols in ONE API call using TD's comma-separated symbol support
-// TD free tier supports multiple symbols in a single indicator call
-async function tdBatch(syms,tdKey,useEOD){
-  const interval=useEOD?'1day':'15min';
-  const symStr=syms.join(',');
-  const base={symbol:symStr,interval,outputsize:'1',apikey:tdKey};
-
-  const[rsiRes,bbRes,emaRes]=await Promise.all([
-    tdGet('rsi',{...base,time_period:'14',series_type:'close'}),
-    tdGet('bbands',{...base,time_period:'20',sd:'2',series_type:'close'}),
-    tdGet('ema',{...base,time_period:'200',series_type:'close'}),
-  ]);
-
-  // Parse multi-symbol responses
-  // When multiple symbols: response is {SYM1:{status,values:[...]}, SYM2:{...}}
-  // When single symbol: response is {status,values:[...]}
-  const out={};
-  for(const sym of syms){
-    out[sym]={rsi:null,bb:null,ema200:null,isEOD:useEOD};
-  }
-
-  function extractVal(res,sym,field){
-    if(!res)return null;
-    // Multi-symbol response
-    if(res[sym]&&res[sym].values){
-      const v=res[sym].values[0];
-      return v?parseFloat(v[field]):null;
-    }
-    // Single symbol response
-    if(syms.length===1&&res.values&&res.values.length){
-      return parseFloat(res.values[0][field]);
-    }
-    return null;
-  }
-
-  for(const sym of syms){
-    // RSI
-    const rsiVal=extractVal(rsiRes,sym,'rsi');
-    if(!isNaN(rsiVal)&&rsiVal!=null)out[sym].rsi=rsiVal;
-
-    // BB
-    const u=extractVal(bbRes,sym,'upper_band');
-    const m=extractVal(bbRes,sym,'middle_band');
-    const l=extractVal(bbRes,sym,'lower_band');
-    if(!isNaN(u)&&u!=null)out[sym].bb={upper:u,middle:m,lower:l};
-
-    // EMA200
-    const emaVal=extractVal(emaRes,sym,'ema');
-    if(!isNaN(emaVal)&&emaVal!=null)out[sym].ema200=emaVal;
-  }
-
-  return out;
-}
+// 2 symbols in parallel = 6 req per window; safe under 8/min with 8s gap
+const TD_CONCURRENCY=2;
+const TD_WINDOW_MS=8000; // ms to wait between groups
 
 async function tdGet(endpoint,params){
   try{
     const r=await fetch(TD_BASE+'/'+endpoint+'?'+new URLSearchParams(params).toString(),{cache:'no-store'});
     if(!r.ok)return null;
     const d=await r.json();
+    // TD returns {status:'error'} or {code:400,...} on bad requests
     if(d.status==='error'||d.code)return null;
     return d;
   }catch(e){return null;}
 }
 
-// Single-ticker fallback (for adding tickers after initial scan)
-async function tdIndicators(sym,tdKey,useEOD){
+// Fetch RSI + BB + EMA for a single symbol in parallel (3 concurrent requests)
+async function tdIndicatorsSingle(sym,tdKey,useEOD){
   const interval=useEOD?'1day':'15min';
   const base={symbol:sym,interval,outputsize:'1',apikey:tdKey};
+
   const[rsiRes,bbRes,emaRes]=await Promise.all([
-    tdGet('rsi',{...base,time_period:'14',series_type:'close'}),
+    tdGet('rsi',  {...base,time_period:'14',series_type:'close'}),
     tdGet('bbands',{...base,time_period:'20',sd:'2',series_type:'close'}),
-    tdGet('ema',{...base,time_period:'200',series_type:'close'}),
+    tdGet('ema',  {...base,time_period:'200',series_type:'close'}),
   ]);
+
   let rsi=null,bb=null,ema200=null;
-  if(rsiRes?.values?.length){const v=parseFloat(rsiRes.values[0].rsi);if(!isNaN(v))rsi=v;}
-  if(bbRes?.values?.length){const v=bbRes.values[0],u=parseFloat(v.upper_band),m=parseFloat(v.middle_band),l=parseFloat(v.lower_band);if(!isNaN(u))bb={upper:u,middle:m,lower:l};}
-  if(emaRes?.values?.length){const v=parseFloat(emaRes.values[0].ema);if(!isNaN(v))ema200=v;}
+
+  if(rsiRes?.values?.length){
+    const v=parseFloat(rsiRes.values[0].rsi);
+    if(!isNaN(v))rsi=v;
+  }
+  if(bbRes?.values?.length){
+    const v=bbRes.values[0];
+    const u=parseFloat(v.upper_band),m=parseFloat(v.middle_band),l=parseFloat(v.lower_band);
+    if(!isNaN(u))bb={upper:u,middle:m,lower:l};
+  }
+  if(emaRes?.values?.length){
+    const v=parseFloat(emaRes.values[0].ema);
+    if(!isNaN(v))ema200=v;
+  }
+
   return{rsi,bb,ema200,isEOD:useEOD};
 }
 
-// ─── SCAN — BATCHED & FAST ────────────────────────────────────────────────────
-// Strategy:
-//   1. Fetch ALL Finnhub prices in parallel (staggered 200ms, ~14s for 72 tickers)
-//   2. Fetch TD indicators in batches of 8 symbols per request
-//      - 3 indicator types × 1 request = 3 req per batch (not 3 per symbol!)
-//      - Wait 7.5s between batches to stay under 8 req/min
-//      - Total TD time: ceil(72/8) = 9 batches × 7.5s = ~68s → ~9 batches
-//      - But we pipeline: prices stream in while TD batches run
-// Result: ~3-4 min total vs ~28 min before
+// Fetch indicators for a list of symbols, TD_CONCURRENCY at a time,
+// calling onSymbolDone(sym, indData) after each symbol completes.
+async function tdFetchAll(syms,tdKey,useEOD,onSymbolDone){
+  for(let i=0;i<syms.length;i+=TD_CONCURRENCY){
+    const group=syms.slice(i,i+TD_CONCURRENCY);
 
-const BATCH_SIZE=8;     // symbols per TD batch call (3 req per batch)
-const BATCH_GAP=7500;   // ms between TD batch calls (3 req × 8 = safe under 8/min)
+    // Fetch group in parallel
+    const results=await Promise.all(
+      group.map(sym=>tdIndicatorsSingle(sym,tdKey,useEOD))
+    );
 
+    // Notify caller for each completed symbol
+    group.forEach((sym,idx)=>{
+      onSymbolDone(sym,results[idx]||{rsi:null,bb:null,ema200:null,isEOD:useEOD});
+    });
+
+    // Wait between groups (except after the last group)
+    if(i+TD_CONCURRENCY<syms.length)await sleep(TD_WINDOW_MS);
+  }
+}
+
+// ─── MAIN SCAN ────────────────────────────────────────────────────────────────
 async function runScan(){
   if(scanning)return;
   const fhKey=getFhKey(),tdKey=getTdKey();
@@ -710,50 +622,43 @@ async function runScan(){
   const TICKERS=getTickers();
   const useEOD=isAfterClose();
   const results=[];
-
-  // ── Phase 1: Fetch all prices in parallel (fast) ──────────────────────────
-  setProg('Fetching prices for '+TICKERS.length+' tickers…',5);
   const priceMap={};
+
+  // ── Phase 1: All Finnhub prices in parallel (fast, ~15s for 72 tickers) ───
+  setProg('Fetching prices for '+TICKERS.length+' tickers…',5);
   await Promise.all(TICKERS.map(async(t,idx)=>{
     await sleep(idx*150); // stagger to stay under Finnhub 60/min
     const p=await fhQuote(t.s,fhKey);
     if(p)priceMap[t.s]=p;
   }));
-  setProg('Prices loaded — fetching indicators…',20);
+  setProg('Prices loaded — fetching indicators (2 at a time)…',20);
 
-  // ── Phase 2: Fetch TD indicators in batches of BATCH_SIZE ─────────────────
-  const syms=TICKERS.map(t=>t.s);
-  const indMap={};
+  // ── Phase 2: TD indicators, 2 symbols per window, rows appear as they load ─
+  const totalGroups=Math.ceil(TICKERS.length/TD_CONCURRENCY);
+  let groupsDone=0;
 
-  for(let i=0;i<syms.length;i+=BATCH_SIZE){
-    const batch=syms.slice(i,i+BATCH_SIZE);
-    const batchNum=Math.floor(i/BATCH_SIZE)+1;
-    const totalBatches=Math.ceil(syms.length/BATCH_SIZE);
-    const pct=20+(i/syms.length)*75;
-    setProg('Indicators batch '+batchNum+'/'+totalBatches+' ('+batch.join(', ')+')…',pct);
-
-    const batchResult=await tdBatch(batch,tdKey,useEOD);
-    Object.assign(indMap,batchResult);
-
-    // Render partial results as each batch comes in
-    for(const t of TICKERS.slice(i,i+BATCH_SIZE)){
-      const pData=priceMap[t.s];
-      const ind=indMap[t.s]||{rsi:null,bb:null,ema200:null};
-      if(pData){
-        const existing=results.findIndex(r=>r.sym===t.s);
+  await tdFetchAll(
+    TICKERS.map(t=>t.s),
+    tdKey,
+    useEOD,
+    (sym,ind)=>{
+      const t=TICKERS.find(x=>x.s===sym);
+      const pData=priceMap[sym];
+      if(t&&pData){
         const row=buildRow(t,pData,ind,useEOD);
+        const existing=results.findIndex(r=>r.sym===sym);
         if(existing>=0)results[existing]=row;
         else results.push(row);
+        scanData=[...results];
+        renderTable();
       }
+      groupsDone++;
+      const pct=20+(groupsDone/TICKERS.length)*75;
+      setProg('Indicators: '+groupsDone+'/'+TICKERS.length+' — '+sym+' ✓',pct);
     }
-    scanData=[...results];
-    renderTable();
+  );
 
-    // Wait between batches (except after last batch)
-    if(i+BATCH_SIZE<syms.length)await sleep(BATCH_GAP);
-  }
-
-  // ── Any tickers that had price but no indicator data yet ───────────────────
+  // ── Any tickers with price but no indicator data (e.g. TD returned nothing) ─
   for(const t of TICKERS){
     if(priceMap[t.s]&&!results.find(r=>r.sym===t.s)){
       results.push(buildRow(t,priceMap[t.s],{rsi:null,bb:null,ema200:null},useEOD));
@@ -774,8 +679,7 @@ async function runScan(){
   if(useEOD)document.getElementById('sb-eod').textContent='✅ EOD update complete '+now;
   else document.getElementById('sb-eod').textContent='Pending — triggers after 4:15 PM ET';
 
-  updateSignalBadge();
-  renderTable();
+  updateSignalBadge();renderTable();
   startAutoRefresh(fhKey,tdKey);
 }
 
@@ -792,7 +696,12 @@ function buildRow(t,pData,ind,useEOD){
   prevScores[t.s]=sc.score;
 
   let bbLbl='—',bbCls='bb-mi',bbPct=null;
-  if(bb){if(price<=bb.lower){bbLbl='Lower Band';bbCls='bb-lo';}else if(price>=bb.upper){bbLbl='Upper Band';bbCls='bb-up';}else{bbLbl='Mid Band';bbCls='bb-mi';}bbPct=((price-bb.middle)/bb.middle)*100;}
+  if(bb){
+    if(price<=bb.lower){bbLbl='Lower Band';bbCls='bb-lo';}
+    else if(price>=bb.upper){bbLbl='Upper Band';bbCls='bb-up';}
+    else{bbLbl='Mid Band';bbCls='bb-mi';}
+    bbPct=((price-bb.middle)/bb.middle)*100;
+  }
   const emaPct=ema200!=null?((price-ema200)/ema200)*100:null;
   const indStatus=useEOD?'eod':rsi!=null?'live':'none';
 
@@ -812,28 +721,13 @@ function updateSignalBadge(){
 
 // ─── AUTO REFRESH ─────────────────────────────────────────────────────────────
 function startAutoRefresh(fhKey,tdKey){
-  if(priceTimer)clearInterval(priceTimer);
-  if(indTimer)clearInterval(indTimer);
-  if(priceCdInt)clearInterval(priceCdInt);
-  if(indCdInt)clearInterval(indCdInt);
-
+  if(priceTimer)clearInterval(priceTimer);if(indTimer)clearInterval(indTimer);
+  if(priceCdInt)clearInterval(priceCdInt);if(indCdInt)clearInterval(indCdInt);
   const PRICE_SEC=300,IND_SEC=900;
   priceCd=PRICE_SEC;indCd=IND_SEC;
   priceCdInt=setInterval(()=>{priceCd=Math.max(0,priceCd-1);indCd=Math.max(0,indCd-1);updateCds();},1000);
-
-  priceTimer=setInterval(async()=>{
-    priceCd=PRICE_SEC;
-    if(scanning)return;
-    await refreshPrices(fhKey);
-  },PRICE_SEC*1000);
-
-  indTimer=setInterval(async()=>{
-    indCd=IND_SEC;
-    if(scanning)return;
-    const useEOD=isAfterClose()&&!eodDone;
-    await refreshIndicators(tdKey,useEOD);
-    if(useEOD)eodDone=true;
-  },IND_SEC*1000);
+  priceTimer=setInterval(async()=>{priceCd=PRICE_SEC;if(scanning)return;await refreshPrices(fhKey);},PRICE_SEC*1000);
+  indTimer=setInterval(async()=>{indCd=IND_SEC;if(scanning)return;const useEOD=isAfterClose()&&!eodDone;await refreshIndicators(tdKey,useEOD);if(useEOD)eodDone=true;},IND_SEC*1000);
 }
 
 function updateCds(){
@@ -842,21 +736,19 @@ function updateCds(){
 }
 
 async function refreshPrices(fhKey){
-  const updated=[];
-  // Parallel price fetch with stagger
   const priceMap={};
   await Promise.all(scanData.map(async(row,idx)=>{
     await sleep(idx*150);
     const p=await fhQuote(row.sym,fhKey);
     if(p)priceMap[row.sym]=p;
   }));
-  for(const row of scanData){
+  const updated=scanData.map(row=>{
     const r={...row};
     if(priceMap[r.sym]){r.price=priceMap[r.sym].price;r.chg=priceMap[r.sym].chg;}
     const sc=scoreRow(r.rsi,r.bb,r.ema200,r.price);
     r.score=sc.score;r.scoreLabel=sc.label;r.scoreCls=sc.cls;r.play=sc.play;r.scoreOrd=sc.ord;
-    updated.push(r);
-  }
+    return r;
+  });
   scanData=updated;
   document.getElementById('sb-price').textContent=fmtTime();
   renderTable();
@@ -864,18 +756,16 @@ async function refreshPrices(fhKey){
 
 async function refreshIndicators(tdKey,useEOD){
   newSignals=new Set();
-  const syms=scanData.map(r=>r.sym);
   const indMap={};
 
-  for(let i=0;i<syms.length;i+=BATCH_SIZE){
-    const batch=syms.slice(i,i+BATCH_SIZE);
-    const batchResult=await tdBatch(batch,tdKey,useEOD);
-    Object.assign(indMap,batchResult);
-    if(i+BATCH_SIZE<syms.length)await sleep(BATCH_GAP);
-  }
+  await tdFetchAll(
+    scanData.map(r=>r.sym),
+    tdKey,
+    useEOD,
+    (sym,ind)=>{indMap[sym]=ind;}
+  );
 
-  const updated=[];
-  for(const row of scanData){
+  const updated=scanData.map(row=>{
     const r={...row};
     const ind=indMap[r.sym];
     if(ind){
@@ -894,17 +784,15 @@ async function refreshIndicators(tdKey,useEOD){
       if(isNew)newSignals.add(r.sym);
       prevScores[r.sym]=sc.score;
       r.score=sc.score;r.scoreLabel=sc.label;r.scoreCls=sc.cls;r.play=sc.play;r.scoreOrd=sc.ord;
-      r.indStatus=useEOD?'eod':r.rsi!=null?'live':'none';
-      r.isNewSignal=isNew;
+      r.indStatus=useEOD?'eod':r.rsi!=null?'live':'none';r.isNewSignal=isNew;
     }
-    updated.push(r);
-  }
+    return r;
+  });
   scanData=updated;
   const now=fmtTime();
   document.getElementById('sb-ind').textContent=now+(useEOD?' (✅ EOD)':' (15-min intraday)');
   if(useEOD)document.getElementById('sb-eod').textContent='✅ EOD complete '+now;
-  updateSignalBadge();
-  renderTable();
+  updateSignalBadge();renderTable();
 }
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
