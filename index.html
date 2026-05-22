@@ -95,6 +95,8 @@ main{padding:16px 22px;}
 .leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
 .eod-badge{font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;display:inline-block;width:fit-content;}
 .eod-live{background:#003318;color:var(--green);}.eod-pend{background:#1a1400;color:var(--yellow);}.eod-none{background:#1a1f2e;color:var(--muted);}
+.cached-banner{font-size:11px;background:#0d1a0d;border:1px solid var(--green);border-radius:6px;padding:5px 12px;color:var(--green);margin-bottom:10px;display:none;}
+.cached-banner.show{display:block;}
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:9px;overflow:hidden;}
 th{font-size:11px;font-weight:700;background:#0d1117;padding:9px 11px;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
@@ -107,6 +109,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 .sym-nm{font-size:11px;color:var(--muted);}
 .pr{font-size:14px;font-weight:700;}
 .live-tag{font-size:10px;color:var(--green);margin-left:4px;}
+.cached-tag{font-size:10px;color:var(--muted);margin-left:4px;}
 .chg-p{color:var(--green);font-weight:700;}.chg-n{color:var(--red);font-weight:700;}.chg-z{color:var(--muted);}
 .rsi-w{display:flex;align-items:center;gap:7px;}
 .rsi-tr{width:76px;height:8px;background:#0d1117;border-radius:4px;overflow:hidden;flex-shrink:0;}
@@ -136,7 +139,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 
 <header>
   <div class="logo">✨ 💰 ⭐ &nbsp;$ Mean Reversion Scanner
-    <span class="logo-sub">&nbsp;RSI · Bollinger Bands · 200 EMA — Intraday Signals</span>
+    <span class="logo-sub">&nbsp;RSI · Bollinger Bands · 200 EMA — Daily Signals</span>
   </div>
   <div class="hdr-right">
     <div class="clock-box">
@@ -145,7 +148,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
       <div id="mkt" class="s-closed">CLOSED</div>
     </div>
     <button class="hdr-btn" onclick="makeItRain()">💸 Make it Rain!</button>
-    <button class="hdr-btn" onclick="clearSigCache()">🗑 Clear Cache</button>
+    <button class="hdr-btn" onclick="clearAllCache()">🗑 Clear Cache</button>
   </div>
 </header>
 
@@ -154,7 +157,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
   <span class="live-badge" id="live-b">LIVE</span>
   <div class="prog-col">
     <div id="prog-track"><div id="prog-fill"></div></div>
-    <div id="prog-txt">Ready — click Scan to start</div>
+    <div id="prog-txt">Ready</div>
   </div>
   <div class="scan-info">
     Last scan: <strong id="last-scan">—</strong><br>
@@ -165,8 +168,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 <div class="status-bar">
   <div class="sb-item"><div class="sb-dot" style="background:var(--green)"></div>Price: <span class="sb-val" id="sb-price">—</span></div>
   <div class="sb-item"><div class="sb-dot" style="background:var(--accent)"></div>Indicators: <span class="sb-val" id="sb-ind">—</span></div>
-  <div class="sb-item"><div class="sb-dot" style="background:var(--yellow)"></div>Interval: <span class="sb-val">15-min candles — updates intraday</span></div>
-  <div class="sb-item"><div class="sb-dot" style="background:var(--green)"></div>EOD Update: <span class="sb-val" id="sb-eod">—</span></div>
+  <div class="sb-item"><div class="sb-dot" style="background:var(--yellow)"></div>Source: <span class="sb-val">Yahoo Finance · Daily closes · No API key needed</span></div>
   <div class="sb-right" id="sb-signals">—</div>
 </div>
 
@@ -176,7 +178,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
   <div class="modal">
     <div class="modal-title">📋 Manage Watchlist</div>
     <div class="modal-body">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Click ✕ to remove a ticker. Custom tickers shown in <span style="color:var(--accent)">blue</span>.</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Click ✕ to remove. Custom tickers in <span style="color:var(--accent)">blue</span>.</div>
       <div class="ticker-list" id="modal-ticker-list"></div>
     </div>
     <div class="modal-foot">
@@ -187,6 +189,8 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 </div>
 
 <main>
+  <div class="cached-banner" id="cached-banner"></div>
+
   <div class="crit-panel">
     <div class="crit-title">📊 Mean Reversion Scanner — Signal Criteria</div>
     <div class="crit-grid">
@@ -197,12 +201,12 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
       <div class="crit-item"><div class="crit-lbl">Strong Buy</div><div class="crit-val cv-g">RSI &lt;30 + Lower BB + Above 200 EMA</div></div>
       <div class="crit-item"><div class="crit-lbl">Strong Sell</div><div class="crit-val cv-r">RSI &gt;70 + Upper BB</div></div>
       <div class="crit-item"><div class="crit-lbl">Price Source</div><div class="crit-val cv-g">Finnhub · Real-Time · Every 5 min</div></div>
-      <div class="crit-item"><div class="crit-lbl">Indicators</div><div class="crit-val cv-g">Twelve Data · 15-min · Every 15 min</div></div>
+      <div class="crit-item"><div class="crit-lbl">Indicators</div><div class="crit-val cv-g">Yahoo Finance · Daily · Calculated locally</div></div>
     </div>
     <div class="data-src">
       <span>Price:</span> Finnhub real-time, refreshes every 5 min &nbsp;|&nbsp;
-      <span>RSI(14) · BB(20,2) · EMA(200):</span> Twelve Data 15-min intraday · <span>Speed optimized:</span> all 3 indicators fetched in one batch call per symbol &nbsp;|&nbsp;
-      <span>EOD:</span> Final candle after 4:15 PM ET gives definitive close signals
+      <span>RSI(14) · BB(20,2) · EMA(200):</span> Calculated from Yahoo Finance daily closes — no API key, no rate limits, persists across sessions &nbsp;|&nbsp;
+      <span>Cache:</span> Scan data saved to browser storage — survives page refresh, market close &amp; weekends
     </div>
   </div>
 
@@ -237,8 +241,8 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     <div class="leg"><div class="leg-dot" style="background:var(--muted)"></div>Neutral</div>
     <div class="leg"><div class="leg-dot" style="background:var(--orange)"></div>Sell</div>
     <div class="leg"><div class="leg-dot" style="background:var(--red)"></div>Strong Sell</div>
-    <div class="leg"><span class="eod-badge eod-live">✅ EOD</span> = Updated with today's close</div>
-    <div class="leg"><span class="eod-badge eod-pend">🕐 Intraday</span> = Live 15-min data</div>
+    <div class="leg"><span class="eod-badge eod-live">✅ Fresh</span> = Scanned today</div>
+    <div class="leg"><span class="eod-badge eod-pend">💾 Cached</span> = Stored from last scan</div>
     <span style="color:var(--muted);font-size:12px">| 🔔 = New signal since last refresh</span>
   </div>
 
@@ -257,7 +261,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
         <th onclick="srt('days')">Last Signal <span class="sa">↕</span></th>
       </tr></thead>
       <tbody id="tbody">
-        <tr class="tbl-msg"><td colspan="10">Starting scan…</td></tr>
+        <tr class="tbl-msg"><td colspan="10">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -265,9 +269,14 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 </main>
 
 <script>
-// ── HARDCODED API KEYS ──
-const FH_KEY  = 'd87p6phr01qmhakgqmu0d87p6phr01qmhakgqmug';
-const TD_KEY  = '827de4ab48ab448c9e49c9b9999f0baf';
+// ── HARDCODED API KEY ──
+const FH_KEY = 'd87p6phr01qmhakgqmu0d87p6phr01qmhakgqmug';
+
+// ── STORAGE KEYS ──
+const STORE_SCANDATA  = 'mrs_scandata_v2';
+const STORE_SCANMETA  = 'mrs_scanmeta_v2';
+const STORE_CUSTOM    = 'mrs_custom';
+const STORE_SIGCACHE  = 'mrs_sigcache_v2'; // hit-rate signal history
 
 // ── DEFAULT TICKERS ──
 const DEFAULT_TICKERS=[
@@ -309,51 +318,44 @@ const DEFAULT_TICKERS=[
 ];
 
 let CUSTOM_TICKERS=[];
-function loadCustomTickers(){try{return JSON.parse(localStorage.getItem('mrs_custom'))||[];}catch(e){return[];}}
-function saveCustomTickers(){try{localStorage.setItem('mrs_custom',JSON.stringify(CUSTOM_TICKERS));}catch(e){}}
+function loadCustomTickers(){try{return JSON.parse(localStorage.getItem(STORE_CUSTOM))||[];}catch(e){return[];}}
+function saveCustomTickers(){try{localStorage.setItem(STORE_CUSTOM,JSON.stringify(CUSTOM_TICKERS));}catch(e){}}
 function getTickers(){return[...DEFAULT_TICKERS,...CUSTOM_TICKERS];}
 
-async function addTicker(){
-  const inp=document.getElementById('add-sym');
-  const sym=inp.value.trim().toUpperCase().replace(/[^A-Z0-9\-\.]/g,'');
-  if(!sym){inp.focus();return;}
-  const all=getTickers();
-  if(all.find(t=>t.s===sym)){showErr('⚠️ '+sym+' is already in your watchlist.');inp.value='';return;}
-  const newT={s:sym,n:sym,v:0,e:0,d:0,custom:true};
-  CUSTOM_TICKERS.push(newT);saveCustomTickers();inp.value='';showErr('');
+// ── PERSIST SCAN DATA ──
+function saveScanData(){
   try{
-    const r=await fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store'});
-    if(r.ok){const d=await r.json();if(d&&d.name){newT.n=d.name;saveCustomTickers();}}
+    localStorage.setItem(STORE_SCANDATA, JSON.stringify(scanData));
+    localStorage.setItem(STORE_SCANMETA, JSON.stringify({
+      ts: Date.now(),
+      lastScan: document.getElementById('last-scan').textContent,
+      sbPrice: document.getElementById('sb-price').textContent,
+      sbInd: document.getElementById('sb-ind').textContent,
+    }));
   }catch(e){}
-  if(scanData.length>0){
-    setProg('Fetching '+sym+'…',100);
-    const useEOD=isAfterClose();
-    const[pData,ind]=await Promise.all([fhQuote(sym),tdIndicatorsSingle(sym,useEOD)]);
-    if(pData){
-      const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null},useEOD);
-      scanData.push(row);renderTable();
-      setProg('✅ '+sym+' added',100);
-    }else{
-      showErr('⚠️ Could not fetch data for '+sym+'. Check the symbol and try again.');
-      CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
-    }
-  }
-  renderTable();
 }
-
-function removeTicker(sym){CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();scanData=scanData.filter(r=>r.sym!==sym);renderManageModal();renderTable();}
-function openManageModal(){renderManageModal();document.getElementById('manage-modal').classList.add('show');}
-function closeManageModal(){document.getElementById('manage-modal').classList.remove('show');}
-function renderManageModal(){
-  const all=getTickers(),list=document.getElementById('modal-ticker-list');
-  list.innerHTML='';
-  all.forEach(t=>{
-    const tag=document.createElement('span');tag.className='ticker-tag'+(t.custom?' custom':'');
-    tag.innerHTML=t.s+(t.custom?'<button class="rm-btn" title="Remove" onclick="removeTicker(\''+t.s+'\')">✕</button>':'');
-    list.appendChild(tag);
-  });
+function loadScanData(){
+  try{
+    const raw=localStorage.getItem(STORE_SCANDATA);
+    const meta=JSON.parse(localStorage.getItem(STORE_SCANMETA)||'null');
+    if(!raw||!meta)return false;
+    const data=JSON.parse(raw);
+    if(!data||!data.length)return false;
+    scanData=data;
+    // Restore UI meta
+    const age=Math.round((Date.now()-meta.ts)/60000);
+    const ageStr=age<60?age+'min ago':Math.round(age/60)+'hr ago';
+    document.getElementById('last-scan').textContent=meta.lastScan+' ('+ageStr+')';
+    document.getElementById('sb-price').textContent=meta.sbPrice||'—';
+    document.getElementById('sb-ind').textContent=meta.sbInd||'—';
+    document.getElementById('live-b').classList.add('show');
+    // Show cached banner
+    const banner=document.getElementById('cached-banner');
+    banner.textContent='💾 Showing cached scan from '+meta.lastScan+' ('+ageStr+'). Click ▶ SCAN to refresh with live data.';
+    banner.classList.add('show');
+    return true;
+  }catch(e){return false;}
 }
-document.getElementById('manage-modal').addEventListener('click',function(e){if(e.target===this)closeManageModal();});
 
 // ── STATE ──
 let scanData=[];
@@ -362,24 +364,21 @@ let activeFilter='all';
 let scanning=false;
 let priceTimer=null,indTimer=null;
 let priceCd=0,indCd=0,priceCdInt=null,indCdInt=null;
-let eodDone=false;
 let prevScores={};
 let newSignals=new Set();
 
 // ── CLOCK ──
 function etNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));}
-function isMarketOpen(){const et=etNow(),day=et.getDay(),tot=et.getHours()*60+et.getMinutes();return day>=1&&day<=5&&tot>=9*60+30&&tot<16*60;}
-function isAfterClose(){const et=etNow(),day=et.getDay(),tot=et.getHours()*60+et.getMinutes();return day>=1&&day<=5&&tot>=16*60+15;}
+function isMarketOpen(){const et=etNow(),d=et.getDay(),t=et.getHours()*60+et.getMinutes();return d>=1&&d<=5&&t>=570&&t<960;}
 function updateClock(){
   const et=etNow(),h=et.getHours(),m=et.getMinutes(),s=et.getSeconds();
   const am=h>=12?'PM':'AM',h12=h%12||12;
   document.getElementById('clock').textContent=String(h12).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+' '+am;
-  const el=document.getElementById('mkt'),day=et.getDay(),tot=h*60+m;
-  if(day===0||day===6){el.textContent='WEEKEND';el.className='s-closed';}
-  else if(tot>=9*60+30&&tot<16*60){el.textContent='🟢 MARKET OPEN';el.className='s-open';}
-  else if(tot>=16*60&&tot<16*60+15){el.textContent='⏳ CLOSING…';el.className='s-open';}
+  const el=document.getElementById('mkt'),d=et.getDay(),t=h*60+m;
+  if(d===0||d===6){el.textContent='WEEKEND';el.className='s-closed';}
+  else if(t>=570&&t<960){el.textContent='🟢 MARKET OPEN';el.className='s-open';}
+  else if(t>=960&&t<975){el.textContent='⏳ CLOSING…';el.className='s-open';}
   else{el.textContent='CLOSED';el.className='s-closed';}
-  if(h===0&&m===0&&s<5)eodDone=false;
 }
 setInterval(updateClock,1000);updateClock();
 
@@ -394,18 +393,18 @@ function fmtCd(s){return s>60?Math.floor(s/60)+'m '+s%60+'s':s+'s';}
 function scoreRow(rsi,bb,ema200,price){
   if(rsi==null&&!bb)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
   const lo=bb&&price<=bb.lower*1.015,hi=bb&&price>=bb.upper*0.985,ab=ema200!=null?price>ema200:null;
-  if(rsi!=null&&rsi<30&&lo&&ab===true) return{score:'strong-buy', label:'⚡ Strong Buy', play:'Buy Calls',cls:'sc-sb',ord:0};
-  if(rsi!=null&&rsi<30&&lo)            return{score:'strong-buy', label:'⚡ Strong Buy', play:'Buy Calls',cls:'sc-sb',ord:0};
-  if(rsi!=null&&rsi>70&&hi)            return{score:'strong-sell',label:'⚡ Strong Sell',play:'Buy Puts', cls:'sc-ss',ord:4};
-  if(rsi!=null&&rsi<35&&lo)            return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
-  if(lo&&ab===true)                    return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
-  if((rsi!=null&&rsi>70)||hi)          return{score:'sell',       label:'Sell',          play:'Buy Puts', cls:'sc-s2',ord:3};
-  if(rsi!=null&&rsi<30)                return{score:'buy',        label:'Buy',           play:'Buy Calls',cls:'sc-b2',ord:1};
+  if(rsi!=null&&rsi<30&&lo&&ab===true)return{score:'strong-buy',label:'⚡ Strong Buy',play:'Buy Calls',cls:'sc-sb',ord:0};
+  if(rsi!=null&&rsi<30&&lo)          return{score:'strong-buy',label:'⚡ Strong Buy',play:'Buy Calls',cls:'sc-sb',ord:0};
+  if(rsi!=null&&rsi>70&&hi)          return{score:'strong-sell',label:'⚡ Strong Sell',play:'Buy Puts',cls:'sc-ss',ord:4};
+  if(rsi!=null&&rsi<35&&lo)          return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
+  if(lo&&ab===true)                  return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
+  if((rsi!=null&&rsi>70)||hi)        return{score:'sell',label:'Sell',play:'Buy Puts',cls:'sc-s2',ord:3};
+  if(rsi!=null&&rsi<30)              return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
   return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
 }
 
-// ── HIT RATE ──
-function hrKey(s){return'mrs8_'+s;}
+// ── HIT RATE (localStorage-based) ──
+function hrKey(s){return'mrs_hr_'+s;}
 function loadHR(s){try{return JSON.parse(localStorage.getItem(hrKey(s)))||[];}catch(e){return[];}}
 function saveHR(s,a){try{localStorage.setItem(hrKey(s),JSON.stringify(a));}catch(e){}}
 function processHR(sym,price,score){
@@ -423,127 +422,86 @@ function processHR(sym,price,score){
 async function fhQuote(sym){
   try{
     const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store'});
-    if(!r.ok)return null;
-    const d=await r.json();
+    if(!r.ok)return null;const d=await r.json();
     if(!d||!d.c||d.c===0)return null;
     return{price:d.c,chg:d.pc?((d.c-d.pc)/d.pc)*100:0};
   }catch(e){return null;}
 }
 
-// ── TWELVE DATA — BATCH ENDPOINT (all 3 indicators in ONE call per symbol) ──
-// Uses the /time_series endpoint with multiple indicators stacked — cuts TD calls by 66%
-// Format: GET /time_series?symbol=X&interval=15min&outputsize=210&indicator=rsi,bbands,ema&...
-// Falls back to individual calls if batch fails.
-const TD_BASE='https://api.twelvedata.com';
+// ── YAHOO FINANCE — fetch daily OHLC and calculate indicators locally ──
+// Uses allorigins.win as a CORS proxy to reach Yahoo Finance
+// Returns 250 daily closes — enough for RSI(14), BB(20), EMA(200)
+const YF_PROXIES=[
+  s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
+  s=>`https://corsproxy.io/?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
+];
 
-async function tdGet(path, params){
-  try{
-    const r=await fetch(TD_BASE+path+'?'+new URLSearchParams(params),{cache:'no-store'});
-    if(!r.ok)return null;
-    const d=await r.json();
-    if(d.status==='error'||d.code)return null;
-    return d;
-  }catch(e){return null;}
-}
-
-// Fetch all 3 indicators for one symbol using the batch /indicators endpoint
-// This costs only 1 API call instead of 3, tripling throughput
-async function tdIndicatorsSingle(sym, useEOD){
-  const interval = useEOD ? '1day' : '15min';
-  const base = {symbol:sym, interval, outputsize:'1', apikey:TD_KEY};
-
-  // Fetch RSI, BB, EMA in parallel — 3 simultaneous requests per symbol
-  // On free tier (8 req/min) we run 2 symbols concurrently = 6 req/window — safe
-  const [rsiRes, bbRes, emaRes] = await Promise.all([
-    tdGet('/rsi',    {...base, time_period:'14', series_type:'close'}),
-    tdGet('/bbands', {...base, time_period:'20', sd:'2', series_type:'close'}),
-    tdGet('/ema',    {...base, time_period:'200', series_type:'close'}),
-  ]);
-
-  let rsi=null, bb=null, ema200=null;
-  if(rsiRes?.values?.length){ const v=parseFloat(rsiRes.values[0].rsi); if(!isNaN(v))rsi=v; }
-  if(bbRes?.values?.length){ const v=bbRes.values[0]; const u=parseFloat(v.upper_band),m=parseFloat(v.middle_band),l=parseFloat(v.lower_band); if(!isNaN(u))bb={upper:u,middle:m,lower:l}; }
-  if(emaRes?.values?.length){ const v=parseFloat(emaRes.values[0].ema); if(!isNaN(v))ema200=v; }
-  return{rsi,bb,ema200,isEOD:useEOD};
-}
-
-// ── MAIN SCAN ──
-// Phase 1: All Finnhub prices in parallel (staggered 100ms each) — ~8s for 72 tickers
-// Phase 2: TD indicators, 2 symbols at a time with 8s gap — rows appear as each pair loads
-async function runScan(){
-  if(scanning)return;
-  showErr('');scanning=true;
-  const btn=document.getElementById('scan-btn');
-  btn.disabled=true;btn.textContent='⏳ Scanning…';
-  const TICKERS=getTickers();
-  const useEOD=isAfterClose();
-  const results=[];
-  const priceMap={};
-
-  // Phase 1 — all prices in parallel
-  setProg('Fetching prices for '+TICKERS.length+' tickers…',5);
-  await Promise.all(TICKERS.map(async(t,idx)=>{
-    await sleep(idx*100);
-    const p=await fhQuote(t.s);
-    if(p)priceMap[t.s]=p;
-  }));
-  setProg('Prices loaded — fetching indicators…',20);
-
-  // Phase 2 — TD indicators, 2 symbols per window
-  const CONCURRENCY=2;
-  const WINDOW_MS=8500;
-  let done=0;
-  for(let i=0;i<TICKERS.length;i+=CONCURRENCY){
-    const group=TICKERS.slice(i,i+CONCURRENCY);
-    const indResults=await Promise.all(group.map(t=>tdIndicatorsSingle(t.s,useEOD)));
-    group.forEach((t,idx)=>{
-      const ind=indResults[idx]||{rsi:null,bb:null,ema200:null,isEOD:useEOD};
-      const pData=priceMap[t.s];
-      if(pData){
-        const row=buildRow(t,pData,ind,useEOD);
-        const ex=results.findIndex(r=>r.sym===t.s);
-        if(ex>=0)results[ex]=row; else results.push(row);
-        scanData=[...results];
-        renderTable();
-      }
-      done++;
-      const pct=20+Math.round(done/TICKERS.length*75);
-      setProg('Indicators: '+done+'/'+TICKERS.length+' — '+t.s+' ✓',pct);
-    });
-    if(i+CONCURRENCY<TICKERS.length)await sleep(WINDOW_MS);
+async function fetchYahooCloses(sym){
+  for(const proxy of YF_PROXIES){
+    try{
+      const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(10000)});
+      if(!r.ok)continue;
+      const d=await r.json();
+      const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+      if(!closes||closes.length<25)continue;
+      // Filter out nulls
+      return closes.filter(c=>c!=null&&!isNaN(c));
+    }catch(e){}
   }
-
-  // Add any price-only rows (no TD data returned)
-  for(const t of TICKERS){
-    if(priceMap[t.s]&&!results.find(r=>r.sym===t.s)){
-      results.push(buildRow(t,priceMap[t.s],{rsi:null,bb:null,ema200:null},useEOD));
-    }
-  }
-
-  scanData=[...results];
-  if(useEOD)eodDone=true;
-  scanning=false;
-  btn.disabled=false;btn.textContent='▶ SCAN';
-  setProg('✅ '+results.length+' tickers loaded',100);
-
-  const now=fmtTime();
-  document.getElementById('last-scan').textContent=now;
-  document.getElementById('live-b').classList.add('show');
-  document.getElementById('sb-price').textContent=now;
-  document.getElementById('sb-ind').textContent=now+(useEOD?' (EOD)':' (15-min intraday)');
-  if(useEOD){document.getElementById('sb-eod').textContent='✅ EOD update complete '+now;}
-  else{document.getElementById('sb-eod').textContent='Pending — triggers after 4:15 PM ET';}
-  updateSignalBadge();renderTable();
-  startAutoRefresh();
+  return null;
 }
 
-function buildRow(t,pData,ind,useEOD){
+// ── INDICATOR CALCULATIONS ──
+function calcEMA(closes,period){
+  if(closes.length<period)return null;
+  const k=2/(period+1);
+  let ema=closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  for(let i=period;i<closes.length;i++) ema=closes[i]*k+ema*(1-k);
+  return ema;
+}
+
+function calcRSI(closes,period=14){
+  if(closes.length<period+1)return null;
+  const slice=closes.slice(-(period*3)); // use recent data
+  let gains=0,losses=0;
+  for(let i=1;i<=period;i++){const d=slice[i]-slice[i-1];if(d>0)gains+=d;else losses-=d;}
+  let avgG=gains/period,avgL=losses/period;
+  for(let i=period+1;i<slice.length;i++){
+    const d=slice[i]-slice[i-1];
+    avgG=(avgG*(period-1)+(d>0?d:0))/period;
+    avgL=(avgL*(period-1)+(d<0?-d:0))/period;
+  }
+  if(avgL===0)return 100;
+  return 100-(100/(1+avgG/avgL));
+}
+
+function calcBB(closes,period=20,stdDev=2){
+  if(closes.length<period)return null;
+  const slice=closes.slice(-period);
+  const mean=slice.reduce((a,b)=>a+b,0)/period;
+  const variance=slice.reduce((a,b)=>a+(b-mean)**2,0)/period;
+  const sd=Math.sqrt(variance);
+  return{upper:mean+stdDev*sd,middle:mean,lower:mean-stdDev*sd};
+}
+
+async function getIndicators(sym){
+  const closes=await fetchYahooCloses(sym);
+  if(!closes||closes.length<25)return{rsi:null,bb:null,ema200:null};
+  const rsi=calcRSI(closes,14);
+  const bb=calcBB(closes,20,2);
+  const ema200=calcEMA(closes,Math.min(200,closes.length));
+  return{rsi,bb,ema200};
+}
+
+// ── BUILD ROW ──
+function buildRow(t,pData,ind,isFromCache){
   const price=pData.price,chg=pData.chg;
   const rsi=ind.rsi??null,bb=ind.bb??null,ema200=ind.ema200??null;
   const sc=scoreRow(rsi,bb,ema200,price);
   const hr=processHR(t.s,price,sc.score);
   const prevScore=prevScores[t.s];
-  const isNew=prevScore!==undefined&&prevScore!==sc.score&&(sc.score==='strong-buy'||sc.score==='strong-sell'||sc.score==='buy'||sc.score==='sell');
+  const isNew=prevScore!==undefined&&prevScore!==sc.score&&
+    (sc.score==='strong-buy'||sc.score==='strong-sell'||sc.score==='buy'||sc.score==='sell');
   if(isNew)newSignals.add(t.s);
   prevScores[t.s]=sc.score;
   let bbLbl='—',bbCls='bb-mi',bbPct=null;
@@ -554,14 +512,80 @@ function buildRow(t,pData,ind,useEOD){
     bbPct=((price-bb.middle)/bb.middle)*100;
   }
   const emaPct=ema200!=null?((price-ema200)/ema200)*100:null;
-  const indStatus=useEOD?'eod':rsi!=null?'live':'none';
   return{
     sym:t.s,name:t.n||t.s,vol:t.v||0,etf:t.e||0,def:t.d||0,
     price,chg,rsi,bb,bbLbl,bbCls,bbPct,ema200,emaPct,
     score:sc.score,scoreLabel:sc.label,scoreCls:sc.cls,play:sc.play,scoreOrd:sc.ord,
     hr:hr.rate,hrWins:hr.wins,hrLoss:hr.losses,hrTotal:hr.total,daysAgo:hr.daysAgo,
-    indStatus,isNewSignal:isNew,
+    indStatus: isFromCache?'cached':(rsi!=null?'fresh':'none'),
+    isNewSignal:isNew,
   };
+}
+
+// ── MAIN SCAN ──
+// Phase 1: All Finnhub prices in parallel (staggered 100ms)
+// Phase 2: Yahoo Finance daily data + local indicator calc, 3 symbols concurrently
+// No rate limits, no API key for indicators
+async function runScan(){
+  if(scanning)return;
+  showErr('');scanning=true;
+  const btn=document.getElementById('scan-btn');
+  btn.disabled=true;btn.textContent='⏳ Scanning…';
+  document.getElementById('cached-banner').classList.remove('show');
+  const TICKERS=getTickers();
+  const results=[];
+  const priceMap={};
+
+  // Phase 1 — Finnhub prices in parallel
+  setProg('Fetching prices for '+TICKERS.length+' tickers…',5);
+  await Promise.all(TICKERS.map(async(t,idx)=>{
+    await sleep(idx*100);
+    const p=await fhQuote(t.s);
+    if(p)priceMap[t.s]=p;
+  }));
+  setProg('Prices done — calculating indicators via Yahoo Finance…',20);
+
+  // Phase 2 — Yahoo daily closes + local RSI/BB/EMA, 3 at a time
+  const CONCURRENCY=3;
+  let done=0;
+  for(let i=0;i<TICKERS.length;i+=CONCURRENCY){
+    const group=TICKERS.slice(i,i+CONCURRENCY);
+    const indResults=await Promise.all(group.map(t=>getIndicators(t.s)));
+    group.forEach((t,idx)=>{
+      const ind=indResults[idx]||{rsi:null,bb:null,ema200:null};
+      const pData=priceMap[t.s];
+      if(pData){
+        const row=buildRow(t,pData,ind,false);
+        const ex=results.findIndex(r=>r.sym===t.s);
+        if(ex>=0)results[ex]=row;else results.push(row);
+        scanData=[...results];renderTable();
+      }
+      done++;
+      setProg('Indicators: '+done+'/'+TICKERS.length+' — '+t.s+' ✓',20+Math.round(done/TICKERS.length*78));
+    });
+  }
+
+  // Any price-only rows (Yahoo failed)
+  for(const t of TICKERS){
+    if(priceMap[t.s]&&!results.find(r=>r.sym===t.s)){
+      results.push(buildRow(t,priceMap[t.s],{rsi:null,bb:null,ema200:null},false));
+    }
+  }
+
+  scanData=[...results];
+  scanning=false;
+  btn.disabled=false;btn.textContent='▶ SCAN';
+  setProg('✅ '+results.length+' tickers loaded',100);
+
+  const now=fmtTime();
+  document.getElementById('last-scan').textContent=now;
+  document.getElementById('live-b').classList.add('show');
+  document.getElementById('sb-price').textContent=now;
+  document.getElementById('sb-ind').textContent=now+' (Yahoo Finance daily)';
+
+  updateSignalBadge();renderTable();
+  saveScanData(); // ← persist to localStorage
+  startAutoRefresh();
 }
 
 function updateSignalBadge(){
@@ -570,63 +594,38 @@ function updateSignalBadge(){
 }
 
 // ── AUTO REFRESH ──
+// Prices refresh every 5 min; indicators every 60 min (Yahoo daily data doesn't change intraday)
 function startAutoRefresh(){
   if(priceTimer)clearInterval(priceTimer);if(indTimer)clearInterval(indTimer);
   if(priceCdInt)clearInterval(priceCdInt);if(indCdInt)clearInterval(indCdInt);
-  const PRICE_SEC=300,IND_SEC=900;
+  const PRICE_SEC=300,IND_SEC=3600;
   priceCd=PRICE_SEC;indCd=IND_SEC;
   priceCdInt=setInterval(()=>{priceCd=Math.max(0,priceCd-1);indCd=Math.max(0,indCd-1);updateCds();},1000);
   priceTimer=setInterval(async()=>{priceCd=PRICE_SEC;if(scanning)return;await refreshPrices();},PRICE_SEC*1000);
-  indTimer=setInterval(async()=>{indCd=IND_SEC;if(scanning)return;const useEOD=isAfterClose()&&!eodDone;await refreshIndicators(useEOD);if(useEOD)eodDone=true;},IND_SEC*1000);
+  indTimer=setInterval(async()=>{indCd=IND_SEC;if(scanning)return;await runScan();},IND_SEC*1000);
 }
 function updateCds(){document.getElementById('price-cd').textContent=fmtCd(priceCd);document.getElementById('ind-cd').textContent=fmtCd(indCd);}
 
 async function refreshPrices(){
-  const priceMap={};
-  await Promise.all(scanData.map(async(row,idx)=>{await sleep(idx*100);const p=await fhQuote(row.sym);if(p)priceMap[row.sym]=p;}));
-  const updated=scanData.map(row=>{
-    const r={...row};
-    if(priceMap[r.sym]){r.price=priceMap[r.sym].price;r.chg=priceMap[r.sym].chg;}
-    const sc=scoreRow(r.rsi,r.bb,r.ema200,r.price);
-    r.score=sc.score;r.scoreLabel=sc.label;r.scoreCls=sc.cls;r.play=sc.play;r.scoreOrd=sc.ord;
-    return r;
-  });
-  scanData=updated;
-  document.getElementById('sb-price').textContent=fmtTime();
-  renderTable();
-}
-
-async function refreshIndicators(useEOD){
-  newSignals=new Set();
-  const indMap={};
-  const CONCURRENCY=2,WINDOW_MS=8500;
-  for(let i=0;i<scanData.length;i+=CONCURRENCY){
-    const group=scanData.slice(i,i+CONCURRENCY);
-    const res=await Promise.all(group.map(r=>tdIndicatorsSingle(r.sym,useEOD)));
-    group.forEach((r,idx)=>{indMap[r.sym]=res[idx];});
-    if(i+CONCURRENCY<scanData.length)await sleep(WINDOW_MS);
-  }
-  const updated=scanData.map(row=>{
-    const r={...row},ind=indMap[r.sym];
-    if(ind){
-      r.rsi=ind.rsi;r.bb=ind.bb;r.ema200=ind.ema200;
-      if(r.bb){if(r.price<=r.bb.lower){r.bbLbl='Lower Band';r.bbCls='bb-lo';}else if(r.price>=r.bb.upper){r.bbLbl='Upper Band';r.bbCls='bb-up';}else{r.bbLbl='Mid Band';r.bbCls='bb-mi';}r.bbPct=((r.price-r.bb.middle)/r.bb.middle)*100;}
-      r.emaPct=r.ema200!=null?((r.price-r.ema200)/r.ema200)*100:null;
-      const sc=scoreRow(r.rsi,r.bb,r.ema200,r.price);
-      const prevScore=prevScores[r.sym];
-      const isNew=prevScore!==undefined&&prevScore!==sc.score&&(sc.score==='strong-buy'||sc.score==='strong-sell'||sc.score==='buy'||sc.score==='sell');
-      if(isNew)newSignals.add(r.sym);
-      prevScores[r.sym]=sc.score;
-      r.score=sc.score;r.scoreLabel=sc.label;r.scoreCls=sc.cls;r.play=sc.play;r.scoreOrd=sc.ord;
-      r.indStatus=useEOD?'eod':r.rsi!=null?'live':'none';r.isNewSignal=isNew;
+  await Promise.all(scanData.map(async(row,idx)=>{
+    await sleep(idx*100);
+    const p=await fhQuote(row.sym);
+    if(!p)return;
+    row.price=p.price;row.chg=p.chg;
+    // Recalc score with updated price (indicators unchanged)
+    const sc=scoreRow(row.rsi,row.bb,row.ema200,row.price);
+    row.score=sc.score;row.scoreLabel=sc.label;row.scoreCls=sc.cls;row.play=sc.play;row.scoreOrd=sc.ord;
+    if(row.bb){
+      row.bbPct=((row.price-row.bb.middle)/row.bb.middle)*100;
+      if(row.price<=row.bb.lower){row.bbLbl='Lower Band';row.bbCls='bb-lo';}
+      else if(row.price>=row.bb.upper){row.bbLbl='Upper Band';row.bbCls='bb-up';}
+      else{row.bbLbl='Mid Band';row.bbCls='bb-mi';}
     }
-    return r;
-  });
-  scanData=updated;
-  const now=fmtTime();
-  document.getElementById('sb-ind').textContent=now+(useEOD?' (✅ EOD)':' (15-min intraday)');
-  if(useEOD)document.getElementById('sb-eod').textContent='✅ EOD complete '+now;
-  updateSignalBadge();renderTable();
+    if(row.ema200!=null)row.emaPct=((row.price-row.ema200)/row.ema200)*100;
+  }));
+  document.getElementById('sb-price').textContent=fmtTime();
+  saveScanData();
+  renderTable();
 }
 
 // ── RENDER ──
@@ -667,13 +666,16 @@ function renderTable(){
   document.getElementById('t-def').textContent=all.filter(r=>r.def).length;
   const tbody=document.getElementById('tbody');
   tbody.innerHTML='';
-  if(!scanData.length){tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Starting scan…</td></tr>';document.getElementById('empty').classList.remove('show');return;}
+  if(!scanData.length){tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Click ▶ SCAN to start</td></tr>';document.getElementById('empty').classList.remove('show');return;}
   if(!rows.length){document.getElementById('empty').classList.add('show');return;}
   document.getElementById('empty').classList.remove('show');
   rows.forEach(r=>{
     const chgStr=(r.chg>=0?'+':'')+r.chg.toFixed(2)+'%';
     const chgCls=r.chg>0.01?'chg-p':r.chg<-0.01?'chg-n':'chg-z';
-    const indBadge=r.indStatus==='eod'?'<span class="eod-badge eod-live">✅ EOD</span>':r.indStatus==='live'?'<span class="eod-badge eod-pend">🕐 15-min</span>':'<span class="eod-badge eod-none">—</span>';
+    const isCached=r.indStatus==='cached';
+    const indBadge=r.indStatus==='fresh'?'<span class="eod-badge eod-live">✅ Fresh</span>':
+                   isCached?'<span class="eod-badge eod-pend">💾 Cached</span>':
+                   '<span class="eod-badge eod-none">—</span>';
     let rsiHtml='<div class="ind-wrap"><span style="color:var(--muted)">—</span>'+indBadge+'</div>';
     if(r.rsi!=null){const rp=Math.min(100,Math.max(0,r.rsi));const rc=r.rsi<30?'var(--green)':r.rsi>70?'var(--red)':r.rsi<40?'#69f0ae':r.rsi>60?'var(--orange)':'var(--muted)';rsiHtml='<div class="ind-wrap"><div class="rsi-w"><div class="rsi-tr"><div class="rsi-f" style="width:'+rp+'%;background:'+rc+'"></div></div><span class="rsi-n" style="color:'+rc+'">'+r.rsi.toFixed(1)+'</span></div>'+indBadge+'</div>';}
     let bbHtml='<div class="ind-wrap"><span style="color:var(--muted)">—</span></div>';
@@ -686,11 +688,12 @@ function renderTable(){
     const isStr=r.score==='strong-buy'||r.score==='strong-sell';
     const plCls=r.play==='Buy Calls'?'pl-c':r.play==='Buy Puts'?'pl-p':'pl-w';
     const bell=r.isNewSignal?'<span class="signal-bell">🔔</span>':'';
+    const priceTag=isCached?'<span class="cached-tag">CACHED</span>':'<span class="live-tag">LIVE</span>';
     const tr=document.createElement('tr');
     if(r.isNewSignal)tr.className='new-signal';
     tr.innerHTML=
       '<td class="sym-s"><strong>'+r.sym+'</strong>'+(r.vol?' <span style="color:var(--yellow)">⚠️</span>':'')+bell+'<div class="sym-nm">'+r.name+'</div></td>'+
-      '<td class="pr">$'+r.price.toFixed(2)+'<span class="live-tag">LIVE</span></td>'+
+      '<td class="pr">$'+r.price.toFixed(2)+priceTag+'</td>'+
       '<td class="'+chgCls+'">'+chgStr+'</td>'+
       '<td>'+rsiHtml+'</td>'+
       '<td>'+bbHtml+'</td>'+
@@ -703,6 +706,48 @@ function renderTable(){
   });
 }
 
+// ── ADD TICKER ──
+async function addTicker(){
+  const inp=document.getElementById('add-sym');
+  const sym=inp.value.trim().toUpperCase().replace(/[^A-Z0-9\-\.]/g,'');
+  if(!sym){inp.focus();return;}
+  const all=getTickers();
+  if(all.find(t=>t.s===sym)){showErr('⚠️ '+sym+' is already in your watchlist.');inp.value='';return;}
+  const newT={s:sym,n:sym,v:0,e:0,d:0,custom:true};
+  CUSTOM_TICKERS.push(newT);saveCustomTickers();inp.value='';showErr('');
+  try{
+    const r=await fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store'});
+    if(r.ok){const d=await r.json();if(d&&d.name){newT.n=d.name;saveCustomTickers();}}
+  }catch(e){}
+  if(scanData.length>0){
+    setProg('Fetching '+sym+'…',50);
+    const[pData,ind]=await Promise.all([fhQuote(sym),getIndicators(sym)]);
+    if(pData){
+      const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null},false);
+      scanData.push(row);renderTable();saveScanData();
+      setProg('✅ '+sym+' added',100);
+    }else{
+      showErr('⚠️ Could not fetch data for '+sym+'.');
+      CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
+    }
+  }
+  renderTable();
+}
+
+function removeTicker(sym){CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();scanData=scanData.filter(r=>r.sym!==sym);saveScanData();renderManageModal();renderTable();}
+function openManageModal(){renderManageModal();document.getElementById('manage-modal').classList.add('show');}
+function closeManageModal(){document.getElementById('manage-modal').classList.remove('show');}
+function renderManageModal(){
+  const all=getTickers(),list=document.getElementById('modal-ticker-list');
+  list.innerHTML='';
+  all.forEach(t=>{
+    const tag=document.createElement('span');tag.className='ticker-tag'+(t.custom?' custom':'');
+    tag.innerHTML=t.s+(t.custom?'<button class="rm-btn" title="Remove" onclick="removeTicker(\''+t.s+'\')">✕</button>':'');
+    list.appendChild(tag);
+  });
+}
+document.getElementById('manage-modal').addEventListener('click',function(e){if(e.target===this)closeManageModal();});
+
 // ── SORT / FILTER ──
 const COL_MAP={sym:0,price:1,chg:2,rsi:3,score:6,hr:8,days:9};
 function srt(col){
@@ -714,15 +759,43 @@ function srt(col){
   renderTable();
 }
 function setFilter(f,el){activeFilter=f;document.querySelectorAll('.tot').forEach(t=>t.classList.remove('active'));if(el)el.classList.add('active');renderTable();}
-function clearSigCache(){getTickers().forEach(t=>{try{localStorage.removeItem(hrKey(t.s));}catch(e){}});alert('Signal history cleared.');}
+
+function clearAllCache(){
+  if(!confirm('Clear all cached scan data and signal history?'))return;
+  localStorage.removeItem(STORE_SCANDATA);
+  localStorage.removeItem(STORE_SCANMETA);
+  getTickers().forEach(t=>{try{localStorage.removeItem(hrKey(t.s));}catch(e){}});
+  scanData=[];renderTable();
+  document.getElementById('cached-banner').classList.remove('show');
+  document.getElementById('last-scan').textContent='—';
+  document.getElementById('prog-txt').textContent='Cache cleared — click ▶ SCAN to reload';
+  setProg('',0);
+  alert('Cache cleared.');
+}
 
 // ── MAKE IT RAIN ──
 const RAIN=['💸','💰','💵','🤑','📈','⭐','✨','🎉'];
 function makeItRain(){for(let i=0;i<45;i++){setTimeout(()=>{const el=document.createElement('div');el.textContent=RAIN[Math.floor(Math.random()*RAIN.length)];el.style.cssText='position:fixed;font-size:'+(18+Math.random()*30)+'px;left:'+(Math.random()*100)+'vw;top:-60px;z-index:9999;pointer-events:none;animation:rd '+(1.2+Math.random()*1.2)+'s linear forwards;';document.body.appendChild(el);setTimeout(()=>el.remove(),3500);},i*60);}}
 
-// ── AUTO-START ON LOAD ──
+// ── INIT ──
 CUSTOM_TICKERS=loadCustomTickers();
-window.addEventListener('load', () => { runScan(); });
+window.addEventListener('load',()=>{
+  // Try to restore cached data first — if found, show it immediately
+  const restored=loadScanData();
+  if(restored){
+    // Mark all cached rows as cached
+    scanData=scanData.map(r=>({...r,indStatus:'cached'}));
+    renderTable();
+    // Still auto-scan if market is open
+    if(isMarketOpen()){
+      setTimeout(()=>runScan(),1500); // slight delay so cached data shows first
+    } else {
+      setProg('💾 Cached data loaded — click ▶ SCAN to refresh',100);
+    }
+  } else {
+    runScan();
+  }
+});
 </script>
 </body>
 </html>
