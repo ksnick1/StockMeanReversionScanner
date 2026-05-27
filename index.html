@@ -455,21 +455,19 @@ const YF_PROXIES=[
   s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
   s=>`https://corsproxy.io/?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
   s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
+  s=>`https://corsproxy.io/?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=18mo')}`,
+  s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=1y')}`,
 ];
 async function fetchYahooCloses(sym){
   for(const proxy of YF_PROXIES){
-    for(let attempt=0;attempt<2;attempt++){
-      try{
-        const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(16000)});
-        if(!r.ok)continue;
-        const d=await r.json();
-        const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-        if(!closes||closes.length<25)continue;
-        return closes.filter(c=>c!=null&&!isNaN(c));
-      }catch(e){
-        if(attempt===0)await new Promise(r=>setTimeout(r,1500)); // wait before retry
-      }
-    }
+    try{
+      const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(20000)});
+      if(!r.ok)continue;
+      const d=await r.json();
+      const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+      if(!closes||closes.length<25)continue;
+      return closes.filter(c=>c!=null&&!isNaN(c));
+    }catch(e){}
   }
   return null;
 }
@@ -594,13 +592,15 @@ async function runScan(){
   // Wait for all to finish
   await Promise.allSettled(allPromises);
 
-  // Retry any tickers that didn't make it into scanData
-  const gotSyms=new Set(scanData.map(r=>r.sym));
-  const failed=TICKERS.filter(t=>!gotSyms.has(t.s));
-  if(failed.length>0){
-    setProg('Retrying '+failed.length+' tickers…',95);
-    const retryPromises=failed.map(async(t)=>{
-      await new Promise(r=>setTimeout(r,500+Math.random()*1000)); // stagger retries
+  // Retry failed tickers up to 3 times with increasing delays
+  for(let pass=1;pass<=3;pass++){
+    const gotSyms=new Set(scanData.map(r=>r.sym));
+    const failed=TICKERS.filter(t=>!gotSyms.has(t.s));
+    if(failed.length===0)break;
+    setProg('Retry pass '+pass+'/3 — '+failed.length+' tickers remaining…',94+pass);
+    await new Promise(r=>setTimeout(r,pass*1500)); // wait longer each pass
+    const retryPromises=failed.map(async(t,i)=>{
+      await new Promise(r=>setTimeout(r,i*200)); // stagger within pass
       const[pData,ind]=await Promise.all([fhQuote(t.s),getIndicators(t.s)]);
       if(pData){
         const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
