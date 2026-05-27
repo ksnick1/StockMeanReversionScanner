@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Mean Reversion Scanner</title>
+<title>Our Stock List</title>
 <link id="fav" rel="icon" type="image/png" href=""/>
 <script>
 (function(){
@@ -138,7 +138,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 <body>
 
 <header>
-  <div class="logo">✨ 💰 ⭐ &nbsp;$ Mean Reversion Scanner
+  <div class="logo">💰 Our Stock List
     <span class="logo-sub">&nbsp;RSI · Bollinger Bands · 200 EMA — Daily Signals</span>
   </div>
   <div class="hdr-right">
@@ -192,7 +192,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
   <div class="cached-banner" id="cached-banner"></div>
 
   <div class="crit-panel">
-    <div class="crit-title">📊 Mean Reversion Scanner — Signal Criteria</div>
+    <div class="crit-title">📊 Our Stock List — Signal Criteria</div>
     <div class="crit-grid">
       <div class="crit-item"><div class="crit-lbl">RSI Oversold</div><div class="crit-val cv-g">Below 30 → Buy Calls</div></div>
       <div class="crit-item"><div class="crit-lbl">RSI Overbought</div><div class="crit-val cv-r">Above 70 → Buy Puts</div></div>
@@ -205,8 +205,8 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     </div>
     <div class="data-src">
       <span>Price:</span> Finnhub real-time, refreshes every 5 min &nbsp;|&nbsp;
-      <span>RSI(14) · BB(20,2) · EMA(200):</span> Calculated from Yahoo Finance daily closes — no API key, no rate limits, persists across sessions &nbsp;|&nbsp;
-      <span>Cache:</span> Scan data saved to browser storage — survives page refresh, market close &amp; weekends
+      <span>RSI(14) · BB(20,2) · EMA(200):</span> Calculated from Yahoo Finance daily closes — no rate limits, persists across sessions &nbsp;|&nbsp;
+      <span>Speed:</span> All 70 tickers fetched in parallel waves — progressive rendering as each row completes
     </div>
   </div>
 
@@ -273,48 +273,82 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 const FH_KEY = 'd87p6phr01qmhakgqmu0d87p6phr01qmhakgqmug';
 
 // ── STORAGE KEYS ──
-const STORE_SCANDATA  = 'mrs_scandata_v2';
-const STORE_SCANMETA  = 'mrs_scanmeta_v2';
-const STORE_CUSTOM    = 'mrs_custom';
-const STORE_SIGCACHE  = 'mrs_sigcache_v2'; // hit-rate signal history
+const STORE_SCANDATA = 'osl_scandata_v1';
+const STORE_SCANMETA = 'osl_scanmeta_v1';
+const STORE_CUSTOM   = 'osl_custom_v1';
 
-// ── DEFAULT TICKERS ──
+// ── DEFAULT TICKERS — full 70-stock list ──
 const DEFAULT_TICKERS=[
-  {s:'AAPL',n:'Apple Inc.',v:0,e:0,d:0},{s:'MSFT',n:'Microsoft Corp.',v:0,e:0,d:0},
-  {s:'NVDA',n:'NVIDIA Corp.',v:0,e:0,d:0},{s:'AMD',n:'Advanced Micro Devices',v:0,e:0,d:0},
-  {s:'META',n:'Meta Platforms',v:0,e:0,d:0},{s:'AMZN',n:'Amazon.com Inc.',v:0,e:0,d:0},
-  {s:'GOOGL',n:'Alphabet Inc.',v:0,e:0,d:0},{s:'TSLA',n:'Tesla Inc.',v:0,e:0,d:0},
-  {s:'AVGO',n:'Broadcom Inc.',v:0,e:0,d:0},{s:'NFLX',n:'Netflix Inc.',v:0,e:0,d:0},
-  {s:'INTC',n:'Intel Corp.',v:0,e:0,d:0},{s:'MU',n:'Micron Technology',v:0,e:0,d:0},
-  {s:'QCOM',n:'Qualcomm Inc.',v:0,e:0,d:0},{s:'TXN',n:'Texas Instruments',v:0,e:0,d:0},
-  {s:'ARM',n:'Arm Holdings',v:1,e:0,d:0},{s:'SMCI',n:'Super Micro Computer',v:1,e:0,d:0},
-  {s:'ORCL',n:'Oracle Corp.',v:0,e:0,d:0},{s:'CRM',n:'Salesforce Inc.',v:0,e:0,d:0},
-  {s:'ADBE',n:'Adobe Inc.',v:0,e:0,d:0},{s:'PLTR',n:'Palantir Technologies',v:1,e:0,d:0},
-  {s:'CRWD',n:'CrowdStrike Holdings',v:0,e:0,d:0},{s:'AKAM',n:'Akamai Technologies',v:0,e:0,d:0},
-  {s:'TWLO',n:'Twilio Inc.',v:1,e:0,d:0},{s:'COIN',n:'Coinbase Global',v:1,e:0,d:0},
-  {s:'HOOD',n:'Robinhood Markets',v:1,e:0,d:0},{s:'SOFI',n:'SoFi Technologies',v:1,e:0,d:0},
-  {s:'JPM',n:'JPMorgan Chase',v:0,e:0,d:0},{s:'BAC',n:'Bank of America',v:0,e:0,d:0},
-  {s:'GS',n:'Goldman Sachs',v:0,e:0,d:0},{s:'MS',n:'Morgan Stanley',v:0,e:0,d:0},
-  {s:'C',n:'Citigroup Inc.',v:0,e:0,d:0},{s:'JNJ',n:'Johnson & Johnson',v:0,e:0,d:1},
-  {s:'UNH',n:'UnitedHealth Group',v:0,e:0,d:0},{s:'PFE',n:'Pfizer Inc.',v:0,e:0,d:1},
-  {s:'ABBV',n:'AbbVie Inc.',v:0,e:0,d:1},{s:'LLY',n:'Eli Lilly & Co.',v:0,e:0,d:0},
-  {s:'KO',n:'Coca-Cola Co.',v:0,e:0,d:1},{s:'WMT',n:'Walmart Inc.',v:0,e:0,d:1},
-  {s:'MCD',n:"McDonald's Corp.",v:0,e:0,d:1},{s:'PM',n:'Philip Morris Intl.',v:0,e:0,d:1},
-  {s:'KMB',n:'Kimberly-Clark',v:0,e:0,d:1},{s:'CLX',n:'Clorox Co.',v:0,e:0,d:1},
-  {s:'TJX',n:'TJX Companies',v:0,e:0,d:0},{s:'BBY',n:'Best Buy Co.',v:0,e:0,d:0},
-  {s:'MNST',n:'Monster Beverage',v:0,e:0,d:0},{s:'DE',n:'Deere & Company',v:0,e:0,d:0},
-  {s:'CSX',n:'CSX Corp.',v:0,e:0,d:0},{s:'BE',n:'Bloom Energy',v:1,e:0,d:0},
-  {s:'XOM',n:'Exxon Mobil Corp.',v:0,e:0,d:0},{s:'CVX',n:'Chevron Corp.',v:0,e:0,d:0},
-  {s:'OXY',n:'Occidental Petroleum',v:0,e:0,d:0},{s:'APLD',n:'Applied Digital Corp.',v:1,e:0,d:0},
-  {s:'MARA',n:'Marathon Digital',v:1,e:0,d:0},{s:'SOUN',n:'SoundHound AI',v:1,e:0,d:0},
-  {s:'UBER',n:'Uber Technologies',v:0,e:0,d:0},{s:'NVTS',n:'Navitas Semiconductor',v:1,e:0,d:0},
-  {s:'BW',n:'Babcock & Wilcox',v:1,e:0,d:0},{s:'OKLO',n:'Oklo Inc.',v:1,e:0,d:0},
-  {s:'SPY',n:'SPDR S&P 500 ETF',v:0,e:1,d:0},{s:'QQQ',n:'Invesco Nasdaq-100 ETF',v:0,e:1,d:0},
-  {s:'IWM',n:'iShares Russell 2000',v:0,e:1,d:0},{s:'XLF',n:'Financial Select SPDR',v:0,e:1,d:0},
-  {s:'XLE',n:'Energy Select SPDR',v:0,e:1,d:0},{s:'XLV',n:'Health Care SPDR',v:0,e:1,d:1},
-  {s:'GDX',n:'VanEck Gold Miners ETF',v:0,e:1,d:0},{s:'ARKK',n:'ARK Innovation ETF',v:1,e:1,d:0},
-  {s:'TLT',n:'iShares 20+ Yr Treasury',v:0,e:1,d:1},{s:'SLV',n:'iShares Silver Trust',v:0,e:1,d:0},
-  {s:'IBIT',n:'iShares Bitcoin Trust',v:1,e:1,d:0},{s:'BRK-B',n:'Berkshire Hathaway B',v:0,e:0,d:0},
+  {s:'AAPL',n:'Apple Inc.',v:0,e:0,d:0},
+  {s:'MSFT',n:'Microsoft Corp.',v:0,e:0,d:0},
+  {s:'NVDA',n:'NVIDIA Corp.',v:0,e:0,d:0},
+  {s:'AMD',n:'Advanced Micro Devices',v:0,e:0,d:0},
+  {s:'META',n:'Meta Platforms',v:0,e:0,d:0},
+  {s:'AMZN',n:'Amazon.com Inc.',v:0,e:0,d:0},
+  {s:'GOOGL',n:'Alphabet Inc.',v:0,e:0,d:0},
+  {s:'TSLA',n:'Tesla Inc.',v:0,e:0,d:0},
+  {s:'AVGO',n:'Broadcom Inc.',v:0,e:0,d:0},
+  {s:'NFLX',n:'Netflix Inc.',v:0,e:0,d:0},
+  {s:'INTC',n:'Intel Corp.',v:0,e:0,d:0},
+  {s:'MU',n:'Micron Technology',v:0,e:0,d:0},
+  {s:'QCOM',n:'Qualcomm Inc.',v:0,e:0,d:0},
+  {s:'TXN',n:'Texas Instruments',v:0,e:0,d:0},
+  {s:'ARM',n:'Arm Holdings',v:1,e:0,d:0},
+  {s:'SMCI',n:'Super Micro Computer',v:1,e:0,d:0},
+  {s:'ORCL',n:'Oracle Corp.',v:0,e:0,d:0},
+  {s:'CRM',n:'Salesforce Inc.',v:0,e:0,d:0},
+  {s:'ADBE',n:'Adobe Inc.',v:0,e:0,d:0},
+  {s:'PLTR',n:'Palantir Technologies',v:1,e:0,d:0},
+  {s:'CRWD',n:'CrowdStrike Holdings',v:0,e:0,d:0},
+  {s:'AKAM',n:'Akamai Technologies',v:0,e:0,d:0},
+  {s:'TWLO',n:'Twilio Inc.',v:1,e:0,d:0},
+  {s:'COIN',n:'Coinbase Global',v:1,e:0,d:0},
+  {s:'HOOD',n:'Robinhood Markets',v:1,e:0,d:0},
+  {s:'SOFI',n:'SoFi Technologies',v:1,e:0,d:0},
+  {s:'JPM',n:'JPMorgan Chase',v:0,e:0,d:0},
+  {s:'BAC',n:'Bank of America',v:0,e:0,d:0},
+  {s:'GS',n:'Goldman Sachs',v:0,e:0,d:0},
+  {s:'MS',n:'Morgan Stanley',v:0,e:0,d:0},
+  {s:'C',n:'Citigroup Inc.',v:0,e:0,d:0},
+  {s:'JNJ',n:'Johnson & Johnson',v:0,e:0,d:1},
+  {s:'UNH',n:'UnitedHealth Group',v:0,e:0,d:0},
+  {s:'PFE',n:'Pfizer Inc.',v:0,e:0,d:1},
+  {s:'ABBV',n:'AbbVie Inc.',v:0,e:0,d:1},
+  {s:'LLY',n:'Eli Lilly & Co.',v:0,e:0,d:0},
+  {s:'KO',n:'Coca-Cola Co.',v:0,e:0,d:1},
+  {s:'WMT',n:'Walmart Inc.',v:0,e:0,d:1},
+  {s:'MCD',n:"McDonald's Corp.",v:0,e:0,d:1},
+  {s:'PM',n:'Philip Morris Intl.',v:0,e:0,d:1},
+  {s:'KMB',n:'Kimberly-Clark',v:0,e:0,d:1},
+  {s:'CLX',n:'Clorox Co.',v:0,e:0,d:1},
+  {s:'TJX',n:'TJX Companies',v:0,e:0,d:0},
+  {s:'BBY',n:'Best Buy Co.',v:0,e:0,d:0},
+  {s:'MNST',n:'Monster Beverage',v:0,e:0,d:0},
+  {s:'DE',n:'Deere & Company',v:0,e:0,d:0},
+  {s:'CSX',n:'CSX Corp.',v:0,e:0,d:0},
+  {s:'BE',n:'Bloom Energy',v:1,e:0,d:0},
+  {s:'XOM',n:'Exxon Mobil Corp.',v:0,e:0,d:0},
+  {s:'CVX',n:'Chevron Corp.',v:0,e:0,d:0},
+  {s:'OXY',n:'Occidental Petroleum',v:0,e:0,d:0},
+  {s:'APLD',n:'Applied Digital Corp.',v:1,e:0,d:0},
+  {s:'MARA',n:'Marathon Digital',v:1,e:0,d:0},
+  {s:'SOUN',n:'SoundHound AI',v:1,e:0,d:0},
+  {s:'UBER',n:'Uber Technologies',v:0,e:0,d:0},
+  {s:'NVTS',n:'Navitas Semiconductor',v:1,e:0,d:0},
+  {s:'BW',n:'Babcock & Wilcox',v:1,e:0,d:0},
+  {s:'OKLO',n:'Oklo Inc.',v:1,e:0,d:0},
+  {s:'SPY',n:'SPDR S&P 500 ETF',v:0,e:1,d:0},
+  {s:'QQQ',n:'Invesco Nasdaq-100 ETF',v:0,e:1,d:0},
+  {s:'IWM',n:'iShares Russell 2000',v:0,e:1,d:0},
+  {s:'XLF',n:'Financial Select SPDR',v:0,e:1,d:0},
+  {s:'XLE',n:'Energy Select SPDR',v:0,e:1,d:0},
+  {s:'XLV',n:'Health Care SPDR',v:0,e:1,d:1},
+  {s:'GDX',n:'VanEck Gold Miners ETF',v:0,e:1,d:0},
+  {s:'ARKK',n:'ARK Innovation ETF',v:1,e:1,d:0},
+  {s:'TLT',n:'iShares 20+ Yr Treasury',v:0,e:1,d:1},
+  {s:'SLV',n:'iShares Silver Trust',v:0,e:1,d:0},
+  {s:'IBIT',n:'iShares Bitcoin Trust',v:1,e:1,d:0},
+  {s:'BRK-B',n:'Berkshire Hathaway B',v:0,e:0,d:0},
 ];
 
 let CUSTOM_TICKERS=[];
@@ -322,15 +356,15 @@ function loadCustomTickers(){try{return JSON.parse(localStorage.getItem(STORE_CU
 function saveCustomTickers(){try{localStorage.setItem(STORE_CUSTOM,JSON.stringify(CUSTOM_TICKERS));}catch(e){}}
 function getTickers(){return[...DEFAULT_TICKERS,...CUSTOM_TICKERS];}
 
-// ── PERSIST SCAN DATA ──
+// ── PERSIST ──
 function saveScanData(){
   try{
-    localStorage.setItem(STORE_SCANDATA, JSON.stringify(scanData));
-    localStorage.setItem(STORE_SCANMETA, JSON.stringify({
-      ts: Date.now(),
-      lastScan: document.getElementById('last-scan').textContent,
-      sbPrice: document.getElementById('sb-price').textContent,
-      sbInd: document.getElementById('sb-ind').textContent,
+    localStorage.setItem(STORE_SCANDATA,JSON.stringify(scanData));
+    localStorage.setItem(STORE_SCANMETA,JSON.stringify({
+      ts:Date.now(),
+      lastScan:document.getElementById('last-scan').textContent,
+      sbPrice:document.getElementById('sb-price').textContent,
+      sbInd:document.getElementById('sb-ind').textContent,
     }));
   }catch(e){}
 }
@@ -342,16 +376,14 @@ function loadScanData(){
     const data=JSON.parse(raw);
     if(!data||!data.length)return false;
     scanData=data;
-    // Restore UI meta
     const age=Math.round((Date.now()-meta.ts)/60000);
     const ageStr=age<60?age+'min ago':Math.round(age/60)+'hr ago';
-    document.getElementById('last-scan').textContent=meta.lastScan+' ('+ageStr+')';
+    document.getElementById('last-scan').textContent=(meta.lastScan||'')+'  ('+ageStr+')';
     document.getElementById('sb-price').textContent=meta.sbPrice||'—';
     document.getElementById('sb-ind').textContent=meta.sbInd||'—';
     document.getElementById('live-b').classList.add('show');
-    // Show cached banner
     const banner=document.getElementById('cached-banner');
-    banner.textContent='💾 Showing cached scan from '+meta.lastScan+' ('+ageStr+'). Click ▶ SCAN to refresh with live data.';
+    banner.textContent='💾 Showing cached scan from '+(meta.lastScan||'')+' ('+ageStr+'). Click ▶ SCAN to refresh.';
     banner.classList.add('show');
     return true;
   }catch(e){return false;}
@@ -394,17 +426,17 @@ function scoreRow(rsi,bb,ema200,price){
   if(rsi==null&&!bb)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
   const lo=bb&&price<=bb.lower*1.015,hi=bb&&price>=bb.upper*0.985,ab=ema200!=null?price>ema200:null;
   if(rsi!=null&&rsi<30&&lo&&ab===true)return{score:'strong-buy',label:'⚡ Strong Buy',play:'Buy Calls',cls:'sc-sb',ord:0};
-  if(rsi!=null&&rsi<30&&lo)          return{score:'strong-buy',label:'⚡ Strong Buy',play:'Buy Calls',cls:'sc-sb',ord:0};
-  if(rsi!=null&&rsi>70&&hi)          return{score:'strong-sell',label:'⚡ Strong Sell',play:'Buy Puts',cls:'sc-ss',ord:4};
-  if(rsi!=null&&rsi<35&&lo)          return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
-  if(lo&&ab===true)                  return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
-  if((rsi!=null&&rsi>70)||hi)        return{score:'sell',label:'Sell',play:'Buy Puts',cls:'sc-s2',ord:3};
-  if(rsi!=null&&rsi<30)              return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
+  if(rsi!=null&&rsi<30&&lo)return{score:'strong-buy',label:'⚡ Strong Buy',play:'Buy Calls',cls:'sc-sb',ord:0};
+  if(rsi!=null&&rsi>70&&hi)return{score:'strong-sell',label:'⚡ Strong Sell',play:'Buy Puts',cls:'sc-ss',ord:4};
+  if(rsi!=null&&rsi<35&&lo)return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
+  if(lo&&ab===true)return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
+  if((rsi!=null&&rsi>70)||hi)return{score:'sell',label:'Sell',play:'Buy Puts',cls:'sc-s2',ord:3};
+  if(rsi!=null&&rsi<30)return{score:'buy',label:'Buy',play:'Buy Calls',cls:'sc-b2',ord:1};
   return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
 }
 
-// ── HIT RATE (localStorage-based) ──
-function hrKey(s){return'mrs_hr_'+s;}
+// ── HIT RATE ──
+function hrKey(s){return'osl_hr_'+s;}
 function loadHR(s){try{return JSON.parse(localStorage.getItem(hrKey(s)))||[];}catch(e){return[];}}
 function saveHR(s,a){try{localStorage.setItem(hrKey(s),JSON.stringify(a));}catch(e){}}
 function processHR(sym,price,score){
@@ -418,51 +450,37 @@ function processHR(sym,price,score){
   return{rate:scored.length?Math.round(wins/scored.length*100):null,wins,losses:scored.length-wins,total:scored.length,daysAgo:lastSig?Math.floor((Date.now()-lastSig.ts)/(24*3600*1000)):null};
 }
 
-// ── FINNHUB QUOTE ──
-async function fhQuote(sym){
-  try{
-    const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store'});
-    if(!r.ok)return null;const d=await r.json();
-    if(!d||!d.c||d.c===0)return null;
-    return{price:d.c,chg:d.pc?((d.c-d.pc)/d.pc)*100:0};
-  }catch(e){return null;}
-}
-
-// ── YAHOO FINANCE — fetch daily OHLC and calculate indicators locally ──
-// Uses allorigins.win as a CORS proxy to reach Yahoo Finance
-// Returns 250 daily closes — enough for RSI(14), BB(20), EMA(200)
+// ── YAHOO FINANCE — two proxy fallbacks, generous timeout ──
 const YF_PROXIES=[
   s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
   s=>`https://corsproxy.io/?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
+  s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
 ];
-
 async function fetchYahooCloses(sym){
   for(const proxy of YF_PROXIES){
     try{
-      const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(10000)});
+      const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(14000)});
       if(!r.ok)continue;
       const d=await r.json();
       const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
       if(!closes||closes.length<25)continue;
-      // Filter out nulls
       return closes.filter(c=>c!=null&&!isNaN(c));
     }catch(e){}
   }
   return null;
 }
 
-// ── INDICATOR CALCULATIONS ──
+// ── INDICATOR CALCS ──
 function calcEMA(closes,period){
   if(closes.length<period)return null;
   const k=2/(period+1);
   let ema=closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
-  for(let i=period;i<closes.length;i++) ema=closes[i]*k+ema*(1-k);
+  for(let i=period;i<closes.length;i++)ema=closes[i]*k+ema*(1-k);
   return ema;
 }
-
 function calcRSI(closes,period=14){
   if(closes.length<period+1)return null;
-  const slice=closes.slice(-(period*3)); // use recent data
+  const slice=closes.slice(-(period*3));
   let gains=0,losses=0;
   for(let i=1;i<=period;i++){const d=slice[i]-slice[i-1];if(d>0)gains+=d;else losses-=d;}
   let avgG=gains/period,avgL=losses/period;
@@ -474,27 +492,25 @@ function calcRSI(closes,period=14){
   if(avgL===0)return 100;
   return 100-(100/(1+avgG/avgL));
 }
-
-function calcBB(closes,period=20,stdDev=2){
+function calcBB(closes,period=20,sd=2){
   if(closes.length<period)return null;
   const slice=closes.slice(-period);
   const mean=slice.reduce((a,b)=>a+b,0)/period;
   const variance=slice.reduce((a,b)=>a+(b-mean)**2,0)/period;
-  const sd=Math.sqrt(variance);
-  return{upper:mean+stdDev*sd,middle:mean,lower:mean-stdDev*sd};
+  return{upper:mean+sd*Math.sqrt(variance),middle:mean,lower:mean-sd*Math.sqrt(variance)};
 }
-
 async function getIndicators(sym){
   const closes=await fetchYahooCloses(sym);
   if(!closes||closes.length<25)return{rsi:null,bb:null,ema200:null};
-  const rsi=calcRSI(closes,14);
-  const bb=calcBB(closes,20,2);
-  const ema200=calcEMA(closes,Math.min(200,closes.length));
-  return{rsi,bb,ema200};
+  return{
+    rsi:calcRSI(closes,14),
+    bb:calcBB(closes,20,2),
+    ema200:calcEMA(closes,Math.min(200,closes.length))
+  };
 }
 
 // ── BUILD ROW ──
-function buildRow(t,pData,ind,isFromCache){
+function buildRow(t,pData,ind){
   const price=pData.price,chg=pData.chg;
   const rsi=ind.rsi??null,bb=ind.bb??null,ema200=ind.ema200??null;
   const sc=scoreRow(rsi,bb,ema200,price);
@@ -517,74 +533,74 @@ function buildRow(t,pData,ind,isFromCache){
     price,chg,rsi,bb,bbLbl,bbCls,bbPct,ema200,emaPct,
     score:sc.score,scoreLabel:sc.label,scoreCls:sc.cls,play:sc.play,scoreOrd:sc.ord,
     hr:hr.rate,hrWins:hr.wins,hrLoss:hr.losses,hrTotal:hr.total,daysAgo:hr.daysAgo,
-    indStatus: isFromCache?'cached':(rsi!=null?'fresh':'none'),
+    indStatus:rsi!=null?'fresh':'none',
     isNewSignal:isNew,
   };
 }
 
-// ── MAIN SCAN ──
-// Phase 1: All Finnhub prices in parallel (staggered 100ms)
-// Phase 2: Yahoo Finance daily data + local indicator calc, 3 symbols concurrently
-// No rate limits, no API key for indicators
+// ── FINNHUB QUOTE ──
+async function fhQuote(sym){
+  try{
+    const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(!d||!d.c||d.c===0)return null;
+    return{price:d.c,chg:d.pc?((d.c-d.pc)/d.pc)*100:0};
+  }catch(e){return null;}
+}
+
+// ── MAIN SCAN — fully parallel with progressive rendering ──
+// Key changes vs old version:
+//  • All 70 Finnhub price calls fire simultaneously (was staggered 100ms each = 7s lost)
+//  • All 70 Yahoo calls fire simultaneously in one big Promise.allSettled (was 3 at a time)
+//  • Each row renders immediately when BOTH its price AND indicators resolve
+//  • 3-proxy fallback with 14s timeout per request
+//  • Failed tickers show with price only (no indicators) rather than blocking scan
 async function runScan(){
   if(scanning)return;
   showErr('');scanning=true;
   const btn=document.getElementById('scan-btn');
   btn.disabled=true;btn.textContent='⏳ Scanning…';
   document.getElementById('cached-banner').classList.remove('show');
+  newSignals.clear();
   const TICKERS=getTickers();
-  const results=[];
-  const priceMap={};
-
-  // Phase 1 — Finnhub prices in parallel
-  setProg('Fetching prices for '+TICKERS.length+' tickers…',5);
-  await Promise.all(TICKERS.map(async(t,idx)=>{
-    await sleep(idx*100);
-    const p=await fhQuote(t.s);
-    if(p)priceMap[t.s]=p;
-  }));
-  setProg('Prices done — calculating indicators via Yahoo Finance…',20);
-
-  // Phase 2 — Yahoo daily closes + local RSI/BB/EMA, 3 at a time
-  const CONCURRENCY=3;
+  const total=TICKERS.length;
   let done=0;
-  for(let i=0;i<TICKERS.length;i+=CONCURRENCY){
-    const group=TICKERS.slice(i,i+CONCURRENCY);
-    const indResults=await Promise.all(group.map(t=>getIndicators(t.s)));
-    group.forEach((t,idx)=>{
-      const ind=indResults[idx]||{rsi:null,bb:null,ema200:null};
-      const pData=priceMap[t.s];
-      if(pData){
-        const row=buildRow(t,pData,ind,false);
-        const ex=results.findIndex(r=>r.sym===t.s);
-        if(ex>=0)results[ex]=row;else results.push(row);
-        scanData=[...results];renderTable();
-      }
-      done++;
-      setProg('Indicators: '+done+'/'+TICKERS.length+' — '+t.s+' ✓',20+Math.round(done/TICKERS.length*78));
-    });
-  }
+  scanData=[];
 
-  // Any price-only rows (Yahoo failed)
-  for(const t of TICKERS){
-    if(priceMap[t.s]&&!results.find(r=>r.sym===t.s)){
-      results.push(buildRow(t,priceMap[t.s],{rsi:null,bb:null,ema200:null},false));
+  setProg('Firing all '+total+' requests simultaneously…',5);
+
+  // Launch ALL price + indicator fetches at once — no waiting
+  const allPromises=TICKERS.map(async(t)=>{
+    const[pData,ind]=await Promise.all([
+      fhQuote(t.s),
+      getIndicators(t.s)
+    ]);
+    if(pData){
+      const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
+      // Find and replace or append
+      const idx=scanData.findIndex(r=>r.sym===t.s);
+      if(idx>=0)scanData[idx]=row;else scanData.push(row);
+      renderTable();
     }
-  }
+    done++;
+    setProg('Loading… '+done+'/'+total+' complete',5+Math.round(done/total*93));
+  });
 
-  scanData=[...results];
+  // Wait for all to finish (failed ones just won't appear)
+  await Promise.allSettled(allPromises);
+
   scanning=false;
   btn.disabled=false;btn.textContent='▶ SCAN';
-  setProg('✅ '+results.length+' tickers loaded',100);
-
+  setProg('✅ '+scanData.length+'/'+total+' tickers loaded',100);
   const now=fmtTime();
   document.getElementById('last-scan').textContent=now;
   document.getElementById('live-b').classList.add('show');
   document.getElementById('sb-price').textContent=now;
   document.getElementById('sb-ind').textContent=now+' (Yahoo Finance daily)';
-
-  updateSignalBadge();renderTable();
-  saveScanData(); // ← persist to localStorage
+  updateSignalBadge();
+  renderTable();
+  saveScanData();
   startAutoRefresh();
 }
 
@@ -594,7 +610,6 @@ function updateSignalBadge(){
 }
 
 // ── AUTO REFRESH ──
-// Prices refresh every 5 min; indicators every 60 min (Yahoo daily data doesn't change intraday)
 function startAutoRefresh(){
   if(priceTimer)clearInterval(priceTimer);if(indTimer)clearInterval(indTimer);
   if(priceCdInt)clearInterval(priceCdInt);if(indCdInt)clearInterval(indCdInt);
@@ -604,15 +619,17 @@ function startAutoRefresh(){
   priceTimer=setInterval(async()=>{priceCd=PRICE_SEC;if(scanning)return;await refreshPrices();},PRICE_SEC*1000);
   indTimer=setInterval(async()=>{indCd=IND_SEC;if(scanning)return;await runScan();},IND_SEC*1000);
 }
-function updateCds(){document.getElementById('price-cd').textContent=fmtCd(priceCd);document.getElementById('ind-cd').textContent=fmtCd(indCd);}
+function updateCds(){
+  document.getElementById('price-cd').textContent=fmtCd(priceCd);
+  document.getElementById('ind-cd').textContent=fmtCd(indCd);
+}
 
+// ── PRICE REFRESH (prices only, keeps indicators) ──
 async function refreshPrices(){
-  await Promise.all(scanData.map(async(row,idx)=>{
-    await sleep(idx*100);
+  const all=scanData.map(async(row)=>{
     const p=await fhQuote(row.sym);
     if(!p)return;
     row.price=p.price;row.chg=p.chg;
-    // Recalc score with updated price (indicators unchanged)
     const sc=scoreRow(row.rsi,row.bb,row.ema200,row.price);
     row.score=sc.score;row.scoreLabel=sc.label;row.scoreCls=sc.cls;row.play=sc.play;row.scoreOrd=sc.ord;
     if(row.bb){
@@ -622,7 +639,8 @@ async function refreshPrices(){
       else{row.bbLbl='Mid Band';row.bbCls='bb-mi';}
     }
     if(row.ema200!=null)row.emaPct=((row.price-row.ema200)/row.ema200)*100;
-  }));
+  });
+  await Promise.allSettled(all);
   document.getElementById('sb-price').textContent=fmtTime();
   saveScanData();
   renderTable();
@@ -665,10 +683,10 @@ function renderTable(){
   document.getElementById('t-etf').textContent=all.filter(r=>r.etf).length;
   document.getElementById('t-def').textContent=all.filter(r=>r.def).length;
   const tbody=document.getElementById('tbody');
-  tbody.innerHTML='';
   if(!scanData.length){tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Click ▶ SCAN to start</td></tr>';document.getElementById('empty').classList.remove('show');return;}
-  if(!rows.length){document.getElementById('empty').classList.add('show');return;}
+  if(!rows.length){tbody.innerHTML='';document.getElementById('empty').classList.add('show');return;}
   document.getElementById('empty').classList.remove('show');
+  tbody.innerHTML='';
   rows.forEach(r=>{
     const chgStr=(r.chg>=0?'+':'')+r.chg.toFixed(2)+'%';
     const chgCls=r.chg>0.01?'chg-p':r.chg<-0.01?'chg-n':'chg-z';
@@ -677,13 +695,26 @@ function renderTable(){
                    isCached?'<span class="eod-badge eod-pend">💾 Cached</span>':
                    '<span class="eod-badge eod-none">—</span>';
     let rsiHtml='<div class="ind-wrap"><span style="color:var(--muted)">—</span>'+indBadge+'</div>';
-    if(r.rsi!=null){const rp=Math.min(100,Math.max(0,r.rsi));const rc=r.rsi<30?'var(--green)':r.rsi>70?'var(--red)':r.rsi<40?'#69f0ae':r.rsi>60?'var(--orange)':'var(--muted)';rsiHtml='<div class="ind-wrap"><div class="rsi-w"><div class="rsi-tr"><div class="rsi-f" style="width:'+rp+'%;background:'+rc+'"></div></div><span class="rsi-n" style="color:'+rc+'">'+r.rsi.toFixed(1)+'</span></div>'+indBadge+'</div>';}
+    if(r.rsi!=null){
+      const rp=Math.min(100,Math.max(0,r.rsi));
+      const rc=r.rsi<30?'var(--green)':r.rsi>70?'var(--red)':r.rsi<40?'#69f0ae':r.rsi>60?'var(--orange)':'var(--muted)';
+      rsiHtml='<div class="ind-wrap"><div class="rsi-w"><div class="rsi-tr"><div class="rsi-f" style="width:'+rp+'%;background:'+rc+'"></div></div><span class="rsi-n" style="color:'+rc+'">'+r.rsi.toFixed(1)+'</span></div>'+indBadge+'</div>';
+    }
     let bbHtml='<div class="ind-wrap"><span style="color:var(--muted)">—</span></div>';
-    if(r.bb){const ps=r.bbPct!=null?(r.bbPct>=0?'+':'')+r.bbPct.toFixed(1)+'%':'';bbHtml='<div class="ind-wrap"><span class="bb-b '+r.bbCls+'">'+r.bbLbl+'</span><br><span class="bb-pct">'+ps+'</span></div>';}
+    if(r.bb){
+      const ps=r.bbPct!=null?(r.bbPct>=0?'+':'')+r.bbPct.toFixed(1)+'%':'';
+      bbHtml='<div class="ind-wrap"><span class="bb-b '+r.bbCls+'">'+r.bbLbl+'</span><br><span class="bb-pct">'+ps+'</span></div>';
+    }
     let maHtml='<div class="ind-wrap"><span class="ma-na">—</span></div>';
-    if(r.ema200!=null){const ab=r.price>r.ema200;maHtml='<div class="ind-wrap"><span class="'+(ab?'ma-ab':'ma-be')+'">'+(ab?'Above':'Below')+' ('+(r.emaPct>=0?'+':'')+r.emaPct.toFixed(1)+'%)</span></div>';}
+    if(r.ema200!=null){
+      const ab=r.price>r.ema200;
+      maHtml='<div class="ind-wrap"><span class="'+(ab?'ma-ab':'ma-be')+'">'+(ab?'Above':'Below')+' ('+(r.emaPct>=0?'+':'')+r.emaPct.toFixed(1)+'%)</span></div>';
+    }
     let hrHtml='<span style="color:var(--muted);font-size:11px">Accumulating…</span>';
-    if(r.hr!=null){const hc=r.hr>=70?'var(--green)':r.hr>=50?'var(--yellow)':'var(--red)';hrHtml='<div class="hr-w"><div class="hr-tr"><div class="hr-f" style="width:'+r.hr+'%;background:'+hc+'"></div></div><span class="hr-lbl" style="color:'+hc+'">'+r.hr+'%</span></div><div class="hr-sub">'+r.hrWins+'B/'+r.hrLoss+'S</div>';}
+    if(r.hr!=null){
+      const hc=r.hr>=70?'var(--green)':r.hr>=50?'var(--yellow)':'var(--red)';
+      hrHtml='<div class="hr-w"><div class="hr-tr"><div class="hr-f" style="width:'+r.hr+'%;background:'+hc+'"></div></div><span class="hr-lbl" style="color:'+hc+'">'+r.hr+'%</span></div><div class="hr-sub">'+r.hrWins+'W/'+r.hrLoss+'L</div>';
+    }
     const lastHtml=r.daysAgo!=null?'<span style="font-size:11px;color:var(--muted)">'+r.daysAgo+'d ago</span>':'<span style="color:var(--muted)">—</span>';
     const isStr=r.score==='strong-buy'||r.score==='strong-sell';
     const plCls=r.play==='Buy Calls'?'pl-c':r.play==='Buy Puts'?'pl-p':'pl-w';
@@ -699,7 +730,7 @@ function renderTable(){
       '<td>'+bbHtml+'</td>'+
       '<td>'+maHtml+'</td>'+
       '<td><span class="sc-b '+r.scoreCls+'">'+r.scoreLabel+'</span></td>'+
-      '<td><span class="'+plCls+(isStr?' pl-bl':'')+'">'+r.scoreLabel+'</span><br><span style="font-size:11px;color:var(--muted)">'+r.play+'</span></td>'+
+      '<td><span class="'+plCls+(isStr?' pl-bl':'')+'">'+r.play+'</span></td>'+
       '<td>'+hrHtml+'</td>'+
       '<td>'+lastHtml+'</td>';
     tbody.appendChild(tr);
@@ -719,29 +750,32 @@ async function addTicker(){
     const r=await fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store'});
     if(r.ok){const d=await r.json();if(d&&d.name){newT.n=d.name;saveCustomTickers();}}
   }catch(e){}
-  if(scanData.length>0){
-    setProg('Fetching '+sym+'…',50);
-    const[pData,ind]=await Promise.all([fhQuote(sym),getIndicators(sym)]);
-    if(pData){
-      const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null},false);
-      scanData.push(row);renderTable();saveScanData();
-      setProg('✅ '+sym+' added',100);
-    }else{
-      showErr('⚠️ Could not fetch data for '+sym+'.');
-      CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
-    }
+  setProg('Fetching '+sym+'…',50);
+  const[pData,ind]=await Promise.all([fhQuote(sym),getIndicators(sym)]);
+  if(pData){
+    const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null});
+    scanData.push(row);renderTable();saveScanData();
+    setProg('✅ '+sym+' added',100);
+  }else{
+    showErr('⚠️ Could not fetch data for '+sym+'.');
+    CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
   }
   renderTable();
 }
 
-function removeTicker(sym){CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();scanData=scanData.filter(r=>r.sym!==sym);saveScanData();renderManageModal();renderTable();}
+function removeTicker(sym){
+  CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
+  scanData=scanData.filter(r=>r.sym!==sym);
+  saveScanData();renderManageModal();renderTable();
+}
 function openManageModal(){renderManageModal();document.getElementById('manage-modal').classList.add('show');}
 function closeManageModal(){document.getElementById('manage-modal').classList.remove('show');}
 function renderManageModal(){
   const all=getTickers(),list=document.getElementById('modal-ticker-list');
   list.innerHTML='';
   all.forEach(t=>{
-    const tag=document.createElement('span');tag.className='ticker-tag'+(t.custom?' custom':'');
+    const tag=document.createElement('span');
+    tag.className='ticker-tag'+(t.custom?' custom':'');
     tag.innerHTML=t.s+(t.custom?'<button class="rm-btn" title="Remove" onclick="removeTicker(\''+t.s+'\')">✕</button>':'');
     list.appendChild(tag);
   });
@@ -768,31 +802,33 @@ function clearAllCache(){
   scanData=[];renderTable();
   document.getElementById('cached-banner').classList.remove('show');
   document.getElementById('last-scan').textContent='—';
-  document.getElementById('prog-txt').textContent='Cache cleared — click ▶ SCAN to reload';
-  setProg('',0);
-  alert('Cache cleared.');
+  setProg('Cache cleared — click ▶ SCAN to reload',0);
 }
 
 // ── MAKE IT RAIN ──
 const RAIN=['💸','💰','💵','🤑','📈','⭐','✨','🎉'];
-function makeItRain(){for(let i=0;i<45;i++){setTimeout(()=>{const el=document.createElement('div');el.textContent=RAIN[Math.floor(Math.random()*RAIN.length)];el.style.cssText='position:fixed;font-size:'+(18+Math.random()*30)+'px;left:'+(Math.random()*100)+'vw;top:-60px;z-index:9999;pointer-events:none;animation:rd '+(1.2+Math.random()*1.2)+'s linear forwards;';document.body.appendChild(el);setTimeout(()=>el.remove(),3500);},i*60);}}
+function makeItRain(){
+  for(let i=0;i<45;i++){
+    setTimeout(()=>{
+      const el=document.createElement('div');
+      el.textContent=RAIN[Math.floor(Math.random()*RAIN.length)];
+      el.style.cssText='position:fixed;font-size:'+(18+Math.random()*30)+'px;left:'+(Math.random()*100)+'vw;top:-60px;z-index:9999;pointer-events:none;animation:rd '+(1.2+Math.random()*1.2)+'s linear forwards;';
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(),3500);
+    },i*60);
+  }
+}
 
 // ── INIT ──
 CUSTOM_TICKERS=loadCustomTickers();
 window.addEventListener('load',()=>{
-  // Try to restore cached data first — if found, show it immediately
   const restored=loadScanData();
   if(restored){
-    // Mark all cached rows as cached
     scanData=scanData.map(r=>({...r,indStatus:'cached'}));
     renderTable();
-    // Still auto-scan if market is open
-    if(isMarketOpen()){
-      setTimeout(()=>runScan(),1500); // slight delay so cached data shows first
-    } else {
-      setProg('💾 Cached data loaded — click ▶ SCAN to refresh',100);
-    }
-  } else {
+    if(isMarketOpen()){setTimeout(()=>runScan(),1500);}
+    else{setProg('💾 Cached data loaded — click ▶ SCAN to refresh',100);}
+  }else{
     runScan();
   }
 });
