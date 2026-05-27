@@ -458,14 +458,18 @@ const YF_PROXIES=[
 ];
 async function fetchYahooCloses(sym){
   for(const proxy of YF_PROXIES){
-    try{
-      const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(14000)});
-      if(!r.ok)continue;
-      const d=await r.json();
-      const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(!closes||closes.length<25)continue;
-      return closes.filter(c=>c!=null&&!isNaN(c));
-    }catch(e){}
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(16000)});
+        if(!r.ok)continue;
+        const d=await r.json();
+        const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        if(!closes||closes.length<25)continue;
+        return closes.filter(c=>c!=null&&!isNaN(c));
+      }catch(e){
+        if(attempt===0)await new Promise(r=>setTimeout(r,1500)); // wait before retry
+      }
+    }
   }
   return null;
 }
@@ -587,8 +591,26 @@ async function runScan(){
     setProg('Loading… '+done+'/'+total+' complete',5+Math.round(done/total*93));
   });
 
-  // Wait for all to finish (failed ones just won't appear)
+  // Wait for all to finish
   await Promise.allSettled(allPromises);
+
+  // Retry any tickers that didn't make it into scanData
+  const gotSyms=new Set(scanData.map(r=>r.sym));
+  const failed=TICKERS.filter(t=>!gotSyms.has(t.s));
+  if(failed.length>0){
+    setProg('Retrying '+failed.length+' tickers…',95);
+    const retryPromises=failed.map(async(t)=>{
+      await new Promise(r=>setTimeout(r,500+Math.random()*1000)); // stagger retries
+      const[pData,ind]=await Promise.all([fhQuote(t.s),getIndicators(t.s)]);
+      if(pData){
+        const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
+        const idx=scanData.findIndex(r=>r.sym===t.s);
+        if(idx>=0)scanData[idx]=row;else scanData.push(row);
+        renderTable();
+      }
+    });
+    await Promise.allSettled(retryPromises);
+  }
 
   scanning=false;
   btn.disabled=false;btn.textContent='▶ SCAN';
