@@ -17,6 +17,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes signal-flash{0%,100%{background:#003318}50%{background:#005522}}
 @keyframes rd{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+@keyframes slideDown{0%{opacity:0;transform:translateY(-6px)}100%{opacity:1;transform:translateY(0)}}
 header{background:linear-gradient(135deg,#0d1117,#131a27);border-bottom:2px solid var(--border);padding:12px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
 .logo{font-size:20px;font-weight:700;color:var(--accent);display:flex;align-items:center;gap:8px;}
 .logo-sub{font-size:11px;color:var(--muted);font-weight:400;}
@@ -65,18 +66,32 @@ main{padding:16px 22px;}
 .tot-lbl{font-size:10px;color:var(--muted);}
 .tot-n{font-size:20px;font-weight:700;margin-top:1px;}
 .c-all{color:var(--text);}.c-sb{color:var(--green);}.c-ss{color:var(--red);}.c-ac{color:var(--accent);}.c-y{color:var(--yellow);}.c-b{color:#69f0ae;}
-.search-add-bar{display:flex;gap:8px;margin-bottom:12px;align-items:stretch;}
+
+/* ── UNIFIED SEARCH BAR ── */
+.search-zone{margin-bottom:12px;}
+.search-row{display:flex;gap:8px;align-items:stretch;}
 .srch-wrap{position:relative;flex:1;}
-#srch{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:8px 34px 8px 12px;color:var(--text);font-family:var(--font);font-size:13px;}
+#srch{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:8px 36px 8px 12px;color:var(--text);font-family:var(--font);font-size:13px;transition:border-color .15s;}
 #srch:focus{outline:none;border-color:var(--accent);}
-.srch-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;}
-.add-ticker-wrap{display:flex;gap:6px;align-items:center;}
-#add-sym{background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:8px 11px;color:var(--text);font-family:var(--font);font-size:13px;width:100px;text-transform:uppercase;}
-#add-sym:focus{outline:none;border-color:var(--accent);}
-.btn-add{font-family:var(--font);font-size:13px;font-weight:700;background:#1a2035;border:1px solid var(--accent);border-radius:7px;padding:8px 14px;color:var(--accent);cursor:pointer;white-space:nowrap;}
-.btn-add:hover{background:#223050;}
+.srch-x{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1;padding:0;}
+.srch-x:hover{color:var(--text);}
+.btn-search{font-family:var(--font);font-size:13px;font-weight:700;background:var(--accent);color:#000;border:none;border-radius:7px;padding:8px 18px;cursor:pointer;white-space:nowrap;transition:opacity .15s;}
+.btn-search:hover{opacity:.85;}
 .btn-manage{font-family:var(--font);font-size:12px;font-weight:600;background:#131620;border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--muted);cursor:pointer;white-space:nowrap;}
 .btn-manage:hover{border-color:var(--accent);color:var(--text);}
+
+/* ── NOT-FOUND PROMPT ── */
+#not-found-prompt{display:none;margin-top:8px;background:#0d1a2e;border:1px solid var(--accent);border-radius:8px;padding:12px 16px;animation:slideDown .2s ease;}
+#not-found-prompt.show{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.nfp-msg{font-size:13px;color:var(--text);flex:1;}
+.nfp-msg strong{color:var(--accent);}
+.nfp-msg span{color:var(--muted);font-size:12px;}
+.btn-nfp-add{font-family:var(--font);font-size:13px;font-weight:700;background:var(--green);color:#000;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;white-space:nowrap;}
+.btn-nfp-add:hover{opacity:.88;}
+.btn-nfp-cancel{font-family:var(--font);font-size:12px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--muted);cursor:pointer;}
+.btn-nfp-cancel:hover{border-color:var(--muted);color:var(--text);}
+.nfp-adding{font-size:12px;color:var(--accent);animation:blink 1s infinite;}
+
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:none;align-items:center;justify-content:center;}
 .modal-overlay.show{display:flex;}
 .modal{background:#111318;border:1px solid var(--border);border-radius:12px;padding:22px;width:480px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;gap:14px;}
@@ -206,7 +221,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     <div class="data-src">
       <span>Price:</span> Finnhub real-time, refreshes every 5 min &nbsp;|&nbsp;
       <span>RSI(14) · BB(20,2) · EMA(200):</span> Calculated from Yahoo Finance daily closes — no rate limits, persists across sessions &nbsp;|&nbsp;
-      <span>Speed:</span> All 70 tickers fetched in parallel waves — progressive rendering as each row completes
+      <span>Speed:</span> All tickers fetched in parallel — progressive rendering as each row completes
     </div>
   </div>
 
@@ -221,17 +236,28 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     <div class="tot" onclick="setFilter('defensive',this)"><div class="tot-lbl">Defensive</div><div class="tot-n c-b" id="t-def">0</div></div>
   </div>
 
-  <div class="search-add-bar">
-    <div class="srch-wrap">
-      <input id="srch" type="text" placeholder="🔍 Search symbols or names…" oninput="renderTable()"/>
-      <button class="srch-x" onclick="document.getElementById('srch').value='';renderTable();">✕</button>
-    </div>
-    <div class="add-ticker-wrap">
-      <input id="add-sym" type="text" placeholder="+ Symbol" maxlength="10" autocomplete="off"
-        onkeydown="if(event.key==='Enter')addTicker()"
-        oninput="this.value=this.value.toUpperCase()"/>
-      <button class="btn-add" onclick="addTicker()">+ Add</button>
+  <!-- ── UNIFIED SEARCH + ADD ZONE ── -->
+  <div class="search-zone">
+    <div class="search-row">
+      <div class="srch-wrap">
+        <input id="srch" type="text" placeholder="🔍 Search or enter a ticker symbol…" autocomplete="off"
+          oninput="onSearchInput()"
+          onkeydown="if(event.key==='Enter')doSearch()"
+          oninput="this.value=this.value.toUpperCase();onSearchInput()"/>
+        <button class="srch-x" id="srch-x" onclick="clearSearch()" style="display:none">✕</button>
+      </div>
+      <button class="btn-search" onclick="doSearch()">🔍 Search</button>
       <button class="btn-manage" onclick="openManageModal()">📋 Manage</button>
+    </div>
+
+    <!-- Not-found / Add prompt -->
+    <div id="not-found-prompt">
+      <div class="nfp-msg">
+        <strong id="nfp-sym"></strong> is not in your watchlist.
+        <br><span>Add it permanently and fetch live data?</span>
+      </div>
+      <button class="btn-nfp-add" id="btn-nfp-add" onclick="confirmAddTicker()">+ Add to Watchlist</button>
+      <button class="btn-nfp-cancel" onclick="cancelAddPrompt()">Cancel</button>
     </div>
   </div>
 
@@ -276,8 +302,10 @@ const FH_KEY = 'd87p6phr01qmhakgqmu0d87p6phr01qmhakgqmug';
 const STORE_SCANDATA = 'osl_scandata_v1';
 const STORE_SCANMETA = 'osl_scanmeta_v1';
 const STORE_CUSTOM   = 'osl_custom_v1';
+const STORE_IND_CACHE = 'osl_ind_cache_v1';   // NEW: indicator cache
+const IND_CACHE_TTL  = 4 * 60 * 60 * 1000;   // 4 hours
 
-// ── DEFAULT TICKERS — full 70-stock list ──
+// ── DEFAULT TICKERS ──
 const DEFAULT_TICKERS=[
   {s:'AAPL',n:'Apple Inc.',v:0,e:0,d:0},
   {s:'MSFT',n:'Microsoft Corp.',v:0,e:0,d:0},
@@ -356,7 +384,23 @@ function loadCustomTickers(){try{return JSON.parse(localStorage.getItem(STORE_CU
 function saveCustomTickers(){try{localStorage.setItem(STORE_CUSTOM,JSON.stringify(CUSTOM_TICKERS));}catch(e){}}
 function getTickers(){return[...DEFAULT_TICKERS,...CUSTOM_TICKERS];}
 
-// ── PERSIST ──
+// ── INDICATOR CACHE (localStorage, 4hr TTL) ──
+function loadIndCache(){try{return JSON.parse(localStorage.getItem(STORE_IND_CACHE))||{};}catch(e){return {};}}
+function saveIndCache(cache){try{localStorage.setItem(STORE_IND_CACHE,JSON.stringify(cache));}catch(e){}}
+let indCache=loadIndCache();
+
+function getCachedInd(sym){
+  const entry=indCache[sym];
+  if(!entry)return null;
+  if(Date.now()-entry.ts>IND_CACHE_TTL)return null;
+  return entry.data;
+}
+function setCachedInd(sym,data){
+  indCache[sym]={ts:Date.now(),data};
+  saveIndCache(indCache);
+}
+
+// ── PERSIST SCAN ──
 function saveScanData(){
   try{
     localStorage.setItem(STORE_SCANDATA,JSON.stringify(scanData));
@@ -398,6 +442,7 @@ let priceTimer=null,indTimer=null;
 let priceCd=0,indCd=0,priceCdInt=null,indCdInt=null;
 let prevScores={};
 let newSignals=new Set();
+let pendingAddSym='';   // tracks symbol waiting for add confirmation
 
 // ── CLOCK ──
 function etNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));}
@@ -450,25 +495,49 @@ function processHR(sym,price,score){
   return{rate:scored.length?Math.round(wins/scored.length*100):null,wins,losses:scored.length-wins,total:scored.length,daysAgo:lastSig?Math.floor((Date.now()-lastSig.ts)/(24*3600*1000)):null};
 }
 
-// ── YAHOO FINANCE — two proxy fallbacks, generous timeout ──
-const YF_PROXIES=[
-  s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
-  s=>`https://corsproxy.io/?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
-  s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query2.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=14mo')}`,
-  s=>`https://corsproxy.io/?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=18mo')}`,
-  s=>`https://api.allorigins.win/raw?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/'+s+'?interval=1d&range=1y')}`,
-];
+// ── YAHOO FINANCE — race two proxies simultaneously, bail at 8s ──
 async function fetchYahooCloses(sym){
-  for(const proxy of YF_PROXIES){
-    try{
-      const r=await fetch(proxy(sym),{signal:AbortSignal.timeout(20000)});
-      if(!r.ok)continue;
+  const endpoints=[
+    `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=14mo`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=14mo`,
+  ];
+  const proxies=[
+    (u)=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+    (u)=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ];
+
+  // Round 1: try direct fetch (works in some browsers) + corsproxy simultaneously
+  const directAttempts=endpoints.map(u=>
+    fetch(u,{signal:AbortSignal.timeout(6000)})
+      .then(r=>r.ok?r.json():Promise.reject())
+      .catch(()=>null)
+  );
+  const proxyAttempts=endpoints.map(u=>
+    fetch(proxies[0](u),{signal:AbortSignal.timeout(8000)})
+      .then(r=>r.ok?r.json():Promise.reject())
+      .catch(()=>null)
+  );
+
+  // Race all attempts together, take first valid result
+  const allAttempts=[...directAttempts,...proxyAttempts];
+  const results=await Promise.allSettled(allAttempts);
+  for(const res of results){
+    if(res.status==='fulfilled'&&res.value){
+      const closes=res.value?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+      if(closes&&closes.length>=25)return closes.filter(c=>c!=null&&!isNaN(c));
+    }
+  }
+
+  // Round 2 fallback: allorigins with query2
+  try{
+    const r=await fetch(proxies[1](endpoints[1]),{signal:AbortSignal.timeout(8000)});
+    if(r.ok){
       const d=await r.json();
       const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(!closes||closes.length<25)continue;
-      return closes.filter(c=>c!=null&&!isNaN(c));
-    }catch(e){}
-  }
+      if(closes&&closes.length>=25)return closes.filter(c=>c!=null&&!isNaN(c));
+    }
+  }catch(e){}
+
   return null;
 }
 
@@ -501,14 +570,24 @@ function calcBB(closes,period=20,sd=2){
   const variance=slice.reduce((a,b)=>a+(b-mean)**2,0)/period;
   return{upper:mean+sd*Math.sqrt(variance),middle:mean,lower:mean-sd*Math.sqrt(variance)};
 }
+
+// getIndicators: check localStorage cache first
 async function getIndicators(sym){
+  const cached=getCachedInd(sym);
+  if(cached)return cached;
   const closes=await fetchYahooCloses(sym);
-  if(!closes||closes.length<25)return{rsi:null,bb:null,ema200:null};
-  return{
+  if(!closes||closes.length<25){
+    const result={rsi:null,bb:null,ema200:null};
+    // don't cache failures
+    return result;
+  }
+  const result={
     rsi:calcRSI(closes,14),
     bb:calcBB(closes,20,2),
     ema200:calcEMA(closes,Math.min(200,closes.length))
   };
+  setCachedInd(sym,result);
+  return result;
 }
 
 // ── BUILD ROW ──
@@ -551,13 +630,7 @@ async function fhQuote(sym){
   }catch(e){return null;}
 }
 
-// ── MAIN SCAN — fully parallel with progressive rendering ──
-// Key changes vs old version:
-//  • All 70 Finnhub price calls fire simultaneously (was staggered 100ms each = 7s lost)
-//  • All 70 Yahoo calls fire simultaneously in one big Promise.allSettled (was 3 at a time)
-//  • Each row renders immediately when BOTH its price AND indicators resolve
-//  • 3-proxy fallback with 14s timeout per request
-//  • Failed tickers show with price only (no indicators) rather than blocking scan
+// ── MAIN SCAN ──
 async function runScan(){
   if(scanning)return;
   showErr('');scanning=true;
@@ -570,9 +643,8 @@ async function runScan(){
   let done=0;
   scanData=[];
 
-  setProg('Firing all '+total+' requests simultaneously…',5);
+  setProg('Firing all '+total+' requests…',5);
 
-  // Launch ALL price + indicator fetches at once — no waiting
   const allPromises=TICKERS.map(async(t)=>{
     const[pData,ind]=await Promise.all([
       fhQuote(t.s),
@@ -580,27 +652,25 @@ async function runScan(){
     ]);
     if(pData){
       const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
-      // Find and replace or append
       const idx=scanData.findIndex(r=>r.sym===t.s);
       if(idx>=0)scanData[idx]=row;else scanData.push(row);
       renderTable();
     }
     done++;
-    setProg('Loading… '+done+'/'+total+' complete',5+Math.round(done/total*93));
+    setProg('Loading… '+done+'/'+total+' complete',5+Math.round(done/total*88));
   });
 
-  // Wait for all to finish
   await Promise.allSettled(allPromises);
 
-  // Retry failed tickers up to 3 times with increasing delays
+  // Retry only tickers with NO price yet
   for(let pass=1;pass<=3;pass++){
     const gotSyms=new Set(scanData.map(r=>r.sym));
     const failed=TICKERS.filter(t=>!gotSyms.has(t.s));
     if(failed.length===0)break;
-    setProg('Retry pass '+pass+'/3 — '+failed.length+' tickers remaining…',94+pass);
-    await new Promise(r=>setTimeout(r,pass*1500)); // wait longer each pass
+    setProg('Retry pass '+pass+'/3 — '+failed.length+' tickers…',94+pass);
+    await sleep(pass*1200);
     const retryPromises=failed.map(async(t,i)=>{
-      await new Promise(r=>setTimeout(r,i*200)); // stagger within pass
+      await sleep(i*150);
       const[pData,ind]=await Promise.all([fhQuote(t.s),getIndicators(t.s)]);
       if(pData){
         const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
@@ -646,7 +716,6 @@ function updateCds(){
   document.getElementById('ind-cd').textContent=fmtCd(indCd);
 }
 
-// ── PRICE REFRESH (prices only, keeps indicators) ──
 async function refreshPrices(){
   const all=scanData.map(async(row)=>{
     const p=await fhQuote(row.sym);
@@ -668,11 +737,131 @@ async function refreshPrices(){
   renderTable();
 }
 
+// ══════════════════════════════════════════════════════
+// ── UNIFIED SEARCH + ADD LOGIC ──
+// ══════════════════════════════════════════════════════
+
+function onSearchInput(){
+  const val=document.getElementById('srch').value.trim();
+  document.getElementById('srch-x').style.display=val?'':'none';
+  // If prompt was showing for a different symbol, hide it
+  if(pendingAddSym&&val.toUpperCase()!==pendingAddSym){
+    hideNotFoundPrompt();
+  }
+  // Live filter as-you-type
+  renderTable();
+}
+
+function clearSearch(){
+  document.getElementById('srch').value='';
+  document.getElementById('srch-x').style.display='none';
+  hideNotFoundPrompt();
+  renderTable();
+}
+
+function doSearch(){
+  const raw=document.getElementById('srch').value.trim().toUpperCase().replace(/[^A-Z0-9\-\.]/g,'');
+  if(!raw)return;
+
+  // 1. Filter table to matching rows
+  renderTable();
+
+  // 2. Check if the exact symbol exists in our list
+  const allTickers=getTickers();
+  const exactMatch=allTickers.find(t=>t.s===raw);
+
+  if(exactMatch){
+    // Found in list — table is already filtered, hide any prompt
+    hideNotFoundPrompt();
+    // Highlight / scroll to the row if scan data exists
+    const inScanData=scanData.find(r=>r.sym===raw);
+    if(!inScanData&&!scanning){
+      // It's in the ticker list but hasn't scanned yet — no action needed, renderTable already filters
+    }
+    return;
+  }
+
+  // 3. Not in list — show "Add to Watchlist?" prompt
+  showNotFoundPrompt(raw);
+}
+
+function showNotFoundPrompt(sym){
+  pendingAddSym=sym;
+  document.getElementById('nfp-sym').textContent=sym;
+  const btn=document.getElementById('btn-nfp-add');
+  btn.textContent='+ Add to Watchlist';
+  btn.disabled=false;
+  const prompt=document.getElementById('not-found-prompt');
+  prompt.classList.add('show');
+}
+
+function hideNotFoundPrompt(){
+  pendingAddSym='';
+  document.getElementById('not-found-prompt').classList.remove('show');
+}
+
+function cancelAddPrompt(){
+  clearSearch();
+}
+
+async function confirmAddTicker(){
+  const sym=pendingAddSym;
+  if(!sym)return;
+
+  // Button feedback
+  const btn=document.getElementById('btn-nfp-add');
+  btn.disabled=true;
+  btn.textContent='⏳ Fetching…';
+
+  showErr('');
+  const newT={s:sym,n:sym,v:0,e:0,d:0,custom:true};
+
+  // Try to get company name from Finnhub profile
+  try{
+    const r=await fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store',signal:AbortSignal.timeout(6000)});
+    if(r.ok){const d=await r.json();if(d&&d.name)newT.n=d.name;}
+  }catch(e){}
+
+  const[pData,ind]=await Promise.all([fhQuote(sym),getIndicators(sym)]);
+
+  if(!pData){
+    showErr('⚠️ Could not fetch data for <strong>'+sym+'</strong>. It may be an invalid symbol or market is closed.');
+    btn.textContent='+ Add to Watchlist';
+    btn.disabled=false;
+    return;
+  }
+
+  // Commit to watchlist
+  CUSTOM_TICKERS.push(newT);
+  saveCustomTickers();
+
+  const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null});
+  scanData.push(row);
+  renderTable();
+  saveScanData();
+
+  hideNotFoundPrompt();
+  document.getElementById('srch').value='';
+  document.getElementById('srch-x').style.display='none';
+  setProg('✅ '+sym+' added to watchlist',100);
+  showErr('');
+}
+
+// ══════════════════════════════════════════════════════
+
 // ── RENDER ──
 function renderTable(){
   let rows=[...scanData];
-  const q=(document.getElementById('srch').value||'').toLowerCase().trim();
-  if(q)rows=rows.filter(r=>r.sym.toLowerCase().includes(q)||r.name.toLowerCase().includes(q));
+  const q=(document.getElementById('srch').value||'').trim().toUpperCase();
+
+  // Filter by search query (symbol match OR name match)
+  if(q){
+    rows=rows.filter(r=>
+      r.sym.includes(q)||
+      r.name.toUpperCase().includes(q)
+    );
+  }
+
   if(activeFilter==='strong-signal')rows=rows.filter(r=>r.score==='strong-buy'||r.score==='strong-sell');
   else if(activeFilter==='strong-buy')rows=rows.filter(r=>r.score==='strong-buy');
   else if(activeFilter==='strong-sell')rows=rows.filter(r=>r.score==='strong-sell');
@@ -680,6 +869,7 @@ function renderTable(){
   else if(activeFilter==='caution')rows=rows.filter(r=>r.vol);
   else if(activeFilter==='etf')rows=rows.filter(r=>r.etf);
   else if(activeFilter==='defensive')rows=rows.filter(r=>r.def);
+
   const{col,dir}=sortState;
   rows.sort((a,b)=>{
     let av,bv;
@@ -695,6 +885,7 @@ function renderTable(){
     if(av===bv)return 0;
     return(dir==='asc')===(av>bv)?1:-1;
   });
+
   const all=scanData;
   document.getElementById('t-all').textContent=all.length;
   document.getElementById('t-str').textContent=all.filter(r=>r.score==='strong-buy'||r.score==='strong-sell').length;
@@ -704,9 +895,18 @@ function renderTable(){
   document.getElementById('t-caut').textContent=all.filter(r=>r.vol).length;
   document.getElementById('t-etf').textContent=all.filter(r=>r.etf).length;
   document.getElementById('t-def').textContent=all.filter(r=>r.def).length;
+
   const tbody=document.getElementById('tbody');
-  if(!scanData.length){tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Click ▶ SCAN to start</td></tr>';document.getElementById('empty').classList.remove('show');return;}
-  if(!rows.length){tbody.innerHTML='';document.getElementById('empty').classList.add('show');return;}
+  if(!scanData.length){
+    tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Click ▶ SCAN to start</td></tr>';
+    document.getElementById('empty').classList.remove('show');
+    return;
+  }
+  if(!rows.length){
+    tbody.innerHTML='';
+    document.getElementById('empty').classList.add('show');
+    return;
+  }
   document.getElementById('empty').classList.remove('show');
   tbody.innerHTML='';
   rows.forEach(r=>{
@@ -759,32 +959,7 @@ function renderTable(){
   });
 }
 
-// ── ADD TICKER ──
-async function addTicker(){
-  const inp=document.getElementById('add-sym');
-  const sym=inp.value.trim().toUpperCase().replace(/[^A-Z0-9\-\.]/g,'');
-  if(!sym){inp.focus();return;}
-  const all=getTickers();
-  if(all.find(t=>t.s===sym)){showErr('⚠️ '+sym+' is already in your watchlist.');inp.value='';return;}
-  const newT={s:sym,n:sym,v:0,e:0,d:0,custom:true};
-  CUSTOM_TICKERS.push(newT);saveCustomTickers();inp.value='';showErr('');
-  try{
-    const r=await fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store'});
-    if(r.ok){const d=await r.json();if(d&&d.name){newT.n=d.name;saveCustomTickers();}}
-  }catch(e){}
-  setProg('Fetching '+sym+'…',50);
-  const[pData,ind]=await Promise.all([fhQuote(sym),getIndicators(sym)]);
-  if(pData){
-    const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null});
-    scanData.push(row);renderTable();saveScanData();
-    setProg('✅ '+sym+' added',100);
-  }else{
-    showErr('⚠️ Could not fetch data for '+sym+'.');
-    CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
-  }
-  renderTable();
-}
-
+// ── MANAGE MODAL ──
 function removeTicker(sym){
   CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustomTickers();
   scanData=scanData.filter(r=>r.sym!==sym);
@@ -820,6 +995,8 @@ function clearAllCache(){
   if(!confirm('Clear all cached scan data and signal history?'))return;
   localStorage.removeItem(STORE_SCANDATA);
   localStorage.removeItem(STORE_SCANMETA);
+  localStorage.removeItem(STORE_IND_CACHE);
+  indCache={};
   getTickers().forEach(t=>{try{localStorage.removeItem(hrKey(t.s));}catch(e){}});
   scanData=[];renderTable();
   document.getElementById('cached-banner').classList.remove('show');
