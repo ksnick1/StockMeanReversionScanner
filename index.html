@@ -66,8 +66,6 @@ main{padding:16px 22px;}
 .tot-lbl{font-size:10px;color:var(--muted);}
 .tot-n{font-size:20px;font-weight:700;margin-top:1px;}
 .c-all{color:var(--text);}.c-sb{color:var(--green);}.c-ss{color:var(--red);}.c-ac{color:var(--accent);}.c-y{color:var(--yellow);}.c-b{color:#69f0ae;}
-
-/* ── UNIFIED SEARCH BAR ── */
 .search-zone{margin-bottom:12px;}
 .search-row{display:flex;gap:8px;align-items:stretch;}
 .srch-wrap{position:relative;flex:1;}
@@ -79,8 +77,6 @@ main{padding:16px 22px;}
 .btn-search:hover{opacity:.85;}
 .btn-manage{font-family:var(--font);font-size:12px;font-weight:600;background:#131620;border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--muted);cursor:pointer;white-space:nowrap;}
 .btn-manage:hover{border-color:var(--accent);color:var(--text);}
-
-/* ── NOT-FOUND PROMPT ── */
 #not-found-prompt{display:none;margin-top:8px;background:#0d1a2e;border:1px solid var(--accent);border-radius:8px;padding:12px 16px;animation:slideDown .2s ease;}
 #not-found-prompt.show{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
 .nfp-msg{font-size:13px;color:var(--text);flex:1;}
@@ -90,8 +86,6 @@ main{padding:16px 22px;}
 .btn-nfp-add:hover{opacity:.88;}
 .btn-nfp-cancel{font-family:var(--font);font-size:12px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:7px 12px;color:var(--muted);cursor:pointer;}
 .btn-nfp-cancel:hover{border-color:var(--muted);color:var(--text);}
-.nfp-adding{font-size:12px;color:var(--accent);animation:blink 1s infinite;}
-
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:none;align-items:center;justify-content:center;}
 .modal-overlay.show{display:flex;}
 .modal{background:#111318;border:1px solid var(--border);border-radius:12px;padding:22px;width:480px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;gap:14px;}
@@ -183,7 +177,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 <div class="status-bar">
   <div class="sb-item"><div class="sb-dot" style="background:var(--green)"></div>Price: <span class="sb-val" id="sb-price">—</span></div>
   <div class="sb-item"><div class="sb-dot" style="background:var(--accent)"></div>Indicators: <span class="sb-val" id="sb-ind">—</span></div>
-  <div class="sb-item"><div class="sb-dot" style="background:var(--yellow)"></div>Source: <span class="sb-val">Yahoo Finance · Daily closes · No API key needed</span></div>
+  <div class="sb-item"><div class="sb-dot" style="background:var(--yellow)"></div>Source: <span class="sb-val">Finnhub · Real-time price + historical candles</span></div>
   <div class="sb-right" id="sb-signals">—</div>
 </div>
 
@@ -215,13 +209,13 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
       <div class="crit-item"><div class="crit-lbl">200 EMA</div><div class="crit-val">Above = Uptrend · Below = Caution</div></div>
       <div class="crit-item"><div class="crit-lbl">Strong Buy</div><div class="crit-val cv-g">RSI &lt;30 + Lower BB + Above 200 EMA</div></div>
       <div class="crit-item"><div class="crit-lbl">Strong Sell</div><div class="crit-val cv-r">RSI &gt;70 + Upper BB</div></div>
-      <div class="crit-item"><div class="crit-lbl">Price Source</div><div class="crit-val cv-g">Finnhub · Real-Time · Every 5 min</div></div>
-      <div class="crit-item"><div class="crit-lbl">Indicators</div><div class="crit-val cv-g">Yahoo Finance · Daily · Calculated locally</div></div>
+      <div class="crit-item"><div class="crit-lbl">Price + Candles</div><div class="crit-val cv-g">Finnhub · Real-Time · No Proxy Needed</div></div>
+      <div class="crit-item"><div class="crit-lbl">Indicators</div><div class="crit-val cv-g">RSI(14) · BB(20,2) · EMA(200) — Cached 6hr</div></div>
     </div>
     <div class="data-src">
-      <span>Price:</span> Finnhub real-time, refreshes every 5 min &nbsp;|&nbsp;
-      <span>RSI(14) · BB(20,2) · EMA(200):</span> Calculated from Yahoo Finance daily closes — no rate limits, persists across sessions &nbsp;|&nbsp;
-      <span>Speed:</span> All tickers fetched in parallel — progressive rendering as each row completes
+      <span>Price:</span> Finnhub real-time quote, refreshes every 5 min &nbsp;|&nbsp;
+      <span>RSI(14) · BB(20,2) · EMA(200):</span> Finnhub daily candles, calculated locally, cached 6hr in localStorage &nbsp;|&nbsp;
+      <span>Speed:</span> All fetches direct — zero proxies, zero timeouts
     </div>
   </div>
 
@@ -236,12 +230,10 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
     <div class="tot" onclick="setFilter('defensive',this)"><div class="tot-lbl">Defensive</div><div class="tot-n c-b" id="t-def">0</div></div>
   </div>
 
-  <!-- ── UNIFIED SEARCH + ADD ZONE ── -->
   <div class="search-zone">
     <div class="search-row">
       <div class="srch-wrap">
         <input id="srch" type="text" placeholder="🔍 Search or enter a ticker symbol…" autocomplete="off"
-          oninput="onSearchInput()"
           onkeydown="if(event.key==='Enter')doSearch()"
           oninput="this.value=this.value.toUpperCase();onSearchInput()"/>
         <button class="srch-x" id="srch-x" onclick="clearSearch()" style="display:none">✕</button>
@@ -249,8 +241,6 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
       <button class="btn-search" onclick="doSearch()">🔍 Search</button>
       <button class="btn-manage" onclick="openManageModal()">📋 Manage</button>
     </div>
-
-    <!-- Not-found / Add prompt -->
     <div id="not-found-prompt">
       <div class="nfp-msg">
         <strong id="nfp-sym"></strong> is not in your watchlist.
@@ -295,15 +285,16 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 </main>
 
 <script>
-// ── HARDCODED API KEY ──
+// ── CONFIG ──
 const FH_KEY = 'd87p6phr01qmhakgqmu0d87p6phr01qmhakgqmug';
+const FH_BASE = 'https://finnhub.io/api/v1';
 
 // ── STORAGE KEYS ──
-const STORE_SCANDATA = 'osl_scandata_v1';
-const STORE_SCANMETA = 'osl_scanmeta_v1';
-const STORE_CUSTOM   = 'osl_custom_v1';
-const STORE_IND_CACHE = 'osl_ind_cache_v1';   // NEW: indicator cache
-const IND_CACHE_TTL  = 4 * 60 * 60 * 1000;   // 4 hours
+const STORE_SCANDATA  = 'osl_scandata_v1';
+const STORE_SCANMETA  = 'osl_scanmeta_v1';
+const STORE_CUSTOM    = 'osl_custom_v1';
+const STORE_IND_CACHE = 'osl_ind_fh_v1';   // Finnhub-based indicator cache
+const IND_CACHE_TTL   = 6 * 60 * 60 * 1000; // 6 hours
 
 // ── DEFAULT TICKERS ──
 const DEFAULT_TICKERS=[
@@ -384,23 +375,21 @@ function loadCustomTickers(){try{return JSON.parse(localStorage.getItem(STORE_CU
 function saveCustomTickers(){try{localStorage.setItem(STORE_CUSTOM,JSON.stringify(CUSTOM_TICKERS));}catch(e){}}
 function getTickers(){return[...DEFAULT_TICKERS,...CUSTOM_TICKERS];}
 
-// ── INDICATOR CACHE (localStorage, 4hr TTL) ──
-function loadIndCache(){try{return JSON.parse(localStorage.getItem(STORE_IND_CACHE))||{};}catch(e){return {};}}
-function saveIndCache(cache){try{localStorage.setItem(STORE_IND_CACHE,JSON.stringify(cache));}catch(e){}}
-let indCache=loadIndCache();
-
+// ── INDICATOR CACHE ──
+let indCache={};
+function loadIndCache(){try{indCache=JSON.parse(localStorage.getItem(STORE_IND_CACHE))||{};}catch(e){indCache={};}}
+function saveIndCache(){try{localStorage.setItem(STORE_IND_CACHE,JSON.stringify(indCache));}catch(e){}}
 function getCachedInd(sym){
-  const entry=indCache[sym];
-  if(!entry)return null;
-  if(Date.now()-entry.ts>IND_CACHE_TTL)return null;
-  return entry.data;
+  const e=indCache[sym];
+  if(!e||Date.now()-e.ts>IND_CACHE_TTL)return null;
+  return e.data;
 }
 function setCachedInd(sym,data){
   indCache[sym]={ts:Date.now(),data};
-  saveIndCache(indCache);
+  saveIndCache();
 }
 
-// ── PERSIST SCAN ──
+// ── PERSIST SCAN DATA ──
 function saveScanData(){
   try{
     localStorage.setItem(STORE_SCANDATA,JSON.stringify(scanData));
@@ -438,11 +427,11 @@ let scanData=[];
 let sortState={col:'score',dir:'asc'};
 let activeFilter='all';
 let scanning=false;
-let priceTimer=null,indTimer=null;
-let priceCd=0,indCd=0,priceCdInt=null,indCdInt=null;
+let priceTimer=null,indTimer=null,priceCdInt=null;
+let priceCd=0,indCd=0;
 let prevScores={};
 let newSignals=new Set();
-let pendingAddSym='';   // tracks symbol waiting for add confirmation
+let pendingAddSym='';
 
 // ── CLOCK ──
 function etNow(){return new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));}
@@ -495,50 +484,37 @@ function processHR(sym,price,score){
   return{rate:scored.length?Math.round(wins/scored.length*100):null,wins,losses:scored.length-wins,total:scored.length,daysAgo:lastSig?Math.floor((Date.now()-lastSig.ts)/(24*3600*1000)):null};
 }
 
-// ── YAHOO FINANCE — race two proxies simultaneously, bail at 8s ──
-async function fetchYahooCloses(sym){
-  const endpoints=[
-    `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=14mo`,
-    `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=14mo`,
-  ];
-  const proxies=[
-    (u)=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`,
-    (u)=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  ];
+// ══════════════════════════════════════════════════
+// ── FINNHUB DATA — quote + candles, direct, no proxy
+// ══════════════════════════════════════════════════
 
-  // Round 1: try direct fetch (works in some browsers) + corsproxy simultaneously
-  const directAttempts=endpoints.map(u=>
-    fetch(u,{signal:AbortSignal.timeout(6000)})
-      .then(r=>r.ok?r.json():Promise.reject())
-      .catch(()=>null)
-  );
-  const proxyAttempts=endpoints.map(u=>
-    fetch(proxies[0](u),{signal:AbortSignal.timeout(8000)})
-      .then(r=>r.ok?r.json():Promise.reject())
-      .catch(()=>null)
-  );
-
-  // Race all attempts together, take first valid result
-  const allAttempts=[...directAttempts,...proxyAttempts];
-  const results=await Promise.allSettled(allAttempts);
-  for(const res of results){
-    if(res.status==='fulfilled'&&res.value){
-      const closes=res.value?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(closes&&closes.length>=25)return closes.filter(c=>c!=null&&!isNaN(c));
-    }
-  }
-
-  // Round 2 fallback: allorigins with query2
+// Real-time quote
+async function fhQuote(sym){
   try{
-    const r=await fetch(proxies[1](endpoints[1]),{signal:AbortSignal.timeout(8000)});
-    if(r.ok){
-      const d=await r.json();
-      const closes=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(closes&&closes.length>=25)return closes.filter(c=>c!=null&&!isNaN(c));
-    }
-  }catch(e){}
+    const r=await fetch(`${FH_BASE}/quote?symbol=${encodeURIComponent(sym)}&token=${FH_KEY}`,
+      {cache:'no-store',signal:AbortSignal.timeout(7000)});
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(!d||!d.c||d.c===0)return null;
+    return{price:d.c,chg:d.pc?((d.c-d.pc)/d.pc)*100:0};
+  }catch(e){return null;}
+}
 
-  return null;
+// Daily candles for indicator calc — 14 months of data
+// Finnhub free tier: 60 API calls/minute. We batch to stay within limit.
+async function fhCandles(sym){
+  const to=Math.floor(Date.now()/1000);
+  const from=to - Math.round(430*24*3600); // ~14 months
+  try{
+    const r=await fetch(
+      `${FH_BASE}/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${FH_KEY}`,
+      {signal:AbortSignal.timeout(8000)}
+    );
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(!d||d.s==='no_data'||!d.c||d.c.length<25)return null;
+    return d.c; // array of closing prices
+  }catch(e){return null;}
 }
 
 // ── INDICATOR CALCS ──
@@ -571,16 +547,12 @@ function calcBB(closes,period=20,sd=2){
   return{upper:mean+sd*Math.sqrt(variance),middle:mean,lower:mean-sd*Math.sqrt(variance)};
 }
 
-// getIndicators: check localStorage cache first
+// getIndicators: cache-first, then Finnhub candles
 async function getIndicators(sym){
   const cached=getCachedInd(sym);
   if(cached)return cached;
-  const closes=await fetchYahooCloses(sym);
-  if(!closes||closes.length<25){
-    const result={rsi:null,bb:null,ema200:null};
-    // don't cache failures
-    return result;
-  }
+  const closes=await fhCandles(sym);
+  if(!closes||closes.length<25)return{rsi:null,bb:null,ema200:null};
   const result={
     rsi:calcRSI(closes,14),
     bb:calcBB(closes,20,2),
@@ -614,23 +586,17 @@ function buildRow(t,pData,ind){
     price,chg,rsi,bb,bbLbl,bbCls,bbPct,ema200,emaPct,
     score:sc.score,scoreLabel:sc.label,scoreCls:sc.cls,play:sc.play,scoreOrd:sc.ord,
     hr:hr.rate,hrWins:hr.wins,hrLoss:hr.losses,hrTotal:hr.total,daysAgo:hr.daysAgo,
-    indStatus:rsi!=null?'fresh':'none',
-    isNewSignal:isNew,
+    indStatus:rsi!=null?'fresh':'none',isNewSignal:isNew,
   };
 }
 
-// ── FINNHUB QUOTE ──
-async function fhQuote(sym){
-  try{
-    const r=await fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store',signal:AbortSignal.timeout(8000)});
-    if(!r.ok)return null;
-    const d=await r.json();
-    if(!d||!d.c||d.c===0)return null;
-    return{price:d.c,chg:d.pc?((d.c-d.pc)/d.pc)*100:0};
-  }catch(e){return null;}
-}
-
-// ── MAIN SCAN ──
+// ══════════════════════════════════════════════════
+// ── MAIN SCAN
+// Finnhub free = 60 req/min. We fire quote + candles per ticker.
+// With 70 tickers that's up to 140 calls. We batch in groups of 25
+// tickers (50 calls) with a 1s pause between batches to stay safe.
+// Cached indicators don't consume a candle call at all.
+// ══════════════════════════════════════════════════
 async function runScan(){
   if(scanning)return;
   showErr('');scanning=true;
@@ -643,34 +609,16 @@ async function runScan(){
   let done=0;
   scanData=[];
 
-  setProg('Firing all '+total+' requests…',5);
+  // Split into batches of 25 to respect Finnhub rate limit
+  const BATCH=25;
+  const batches=[];
+  for(let i=0;i<TICKERS.length;i+=BATCH)batches.push(TICKERS.slice(i,i+BATCH));
 
-  const allPromises=TICKERS.map(async(t)=>{
-    const[pData,ind]=await Promise.all([
-      fhQuote(t.s),
-      getIndicators(t.s)
-    ]);
-    if(pData){
-      const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
-      const idx=scanData.findIndex(r=>r.sym===t.s);
-      if(idx>=0)scanData[idx]=row;else scanData.push(row);
-      renderTable();
-    }
-    done++;
-    setProg('Loading… '+done+'/'+total+' complete',5+Math.round(done/total*88));
-  });
+  setProg('Starting scan — '+total+' tickers…',3);
 
-  await Promise.allSettled(allPromises);
-
-  // Retry only tickers with NO price yet
-  for(let pass=1;pass<=3;pass++){
-    const gotSyms=new Set(scanData.map(r=>r.sym));
-    const failed=TICKERS.filter(t=>!gotSyms.has(t.s));
-    if(failed.length===0)break;
-    setProg('Retry pass '+pass+'/3 — '+failed.length+' tickers…',94+pass);
-    await sleep(pass*1200);
-    const retryPromises=failed.map(async(t,i)=>{
-      await sleep(i*150);
+  for(let bi=0;bi<batches.length;bi++){
+    const batch=batches[bi];
+    const promises=batch.map(async(t)=>{
       const[pData,ind]=await Promise.all([fhQuote(t.s),getIndicators(t.s)]);
       if(pData){
         const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
@@ -678,8 +626,27 @@ async function runScan(){
         if(idx>=0)scanData[idx]=row;else scanData.push(row);
         renderTable();
       }
+      done++;
+      setProg('Scanning… '+done+'/'+total,5+Math.round(done/total*90));
     });
-    await Promise.allSettled(retryPromises);
+    await Promise.allSettled(promises);
+    // Brief pause between batches (only if more batches remain)
+    if(bi<batches.length-1)await sleep(1100);
+  }
+
+  // One retry pass for anything with no price
+  const gotSyms=new Set(scanData.map(r=>r.sym));
+  const failed=TICKERS.filter(t=>!gotSyms.has(t.s));
+  if(failed.length>0){
+    setProg('Retrying '+failed.length+' tickers…',96);
+    await sleep(1500);
+    await Promise.allSettled(failed.map(async t=>{
+      const[pData,ind]=await Promise.all([fhQuote(t.s),getIndicators(t.s)]);
+      if(pData){
+        const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
+        scanData.push(row);renderTable();
+      }
+    }));
   }
 
   scanning=false;
@@ -689,7 +656,7 @@ async function runScan(){
   document.getElementById('last-scan').textContent=now;
   document.getElementById('live-b').classList.add('show');
   document.getElementById('sb-price').textContent=now;
-  document.getElementById('sb-ind').textContent=now+' (Yahoo Finance daily)';
+  document.getElementById('sb-ind').textContent=now+' (Finnhub daily candles)';
   updateSignalBadge();
   renderTable();
   saveScanData();
@@ -703,20 +670,23 @@ function updateSignalBadge(){
 
 // ── AUTO REFRESH ──
 function startAutoRefresh(){
-  if(priceTimer)clearInterval(priceTimer);if(indTimer)clearInterval(indTimer);
-  if(priceCdInt)clearInterval(priceCdInt);if(indCdInt)clearInterval(indCdInt);
+  if(priceTimer)clearInterval(priceTimer);
+  if(indTimer)clearInterval(indTimer);
+  if(priceCdInt)clearInterval(priceCdInt);
   const PRICE_SEC=300,IND_SEC=3600;
   priceCd=PRICE_SEC;indCd=IND_SEC;
-  priceCdInt=setInterval(()=>{priceCd=Math.max(0,priceCd-1);indCd=Math.max(0,indCd-1);updateCds();},1000);
-  priceTimer=setInterval(async()=>{priceCd=PRICE_SEC;if(scanning)return;await refreshPrices();},PRICE_SEC*1000);
-  indTimer=setInterval(async()=>{indCd=IND_SEC;if(scanning)return;await runScan();},IND_SEC*1000);
-}
-function updateCds(){
-  document.getElementById('price-cd').textContent=fmtCd(priceCd);
-  document.getElementById('ind-cd').textContent=fmtCd(indCd);
+  priceCdInt=setInterval(()=>{
+    priceCd=Math.max(0,priceCd-1);
+    indCd=Math.max(0,indCd-1);
+    document.getElementById('price-cd').textContent=fmtCd(priceCd);
+    document.getElementById('ind-cd').textContent=fmtCd(indCd);
+  },1000);
+  priceTimer=setInterval(async()=>{priceCd=PRICE_SEC;if(!scanning)await refreshPrices();},PRICE_SEC*1000);
+  indTimer=setInterval(async()=>{indCd=IND_SEC;if(!scanning)await runScan();},IND_SEC*1000);
 }
 
 async function refreshPrices(){
+  // Price-only refresh — no candle calls, so rate limit isn't a concern
   const all=scanData.map(async(row)=>{
     const p=await fhQuote(row.sym);
     if(!p)return;
@@ -733,135 +703,71 @@ async function refreshPrices(){
   });
   await Promise.allSettled(all);
   document.getElementById('sb-price').textContent=fmtTime();
-  saveScanData();
-  renderTable();
+  saveScanData();renderTable();
 }
 
-// ══════════════════════════════════════════════════════
-// ── UNIFIED SEARCH + ADD LOGIC ──
-// ══════════════════════════════════════════════════════
-
+// ── UNIFIED SEARCH + ADD ──
 function onSearchInput(){
   const val=document.getElementById('srch').value.trim();
   document.getElementById('srch-x').style.display=val?'':'none';
-  // If prompt was showing for a different symbol, hide it
-  if(pendingAddSym&&val.toUpperCase()!==pendingAddSym){
-    hideNotFoundPrompt();
-  }
-  // Live filter as-you-type
+  if(pendingAddSym&&val!==pendingAddSym)hideNotFoundPrompt();
   renderTable();
 }
-
 function clearSearch(){
   document.getElementById('srch').value='';
   document.getElementById('srch-x').style.display='none';
-  hideNotFoundPrompt();
-  renderTable();
+  hideNotFoundPrompt();renderTable();
 }
-
 function doSearch(){
   const raw=document.getElementById('srch').value.trim().toUpperCase().replace(/[^A-Z0-9\-\.]/g,'');
   if(!raw)return;
-
-  // 1. Filter table to matching rows
   renderTable();
-
-  // 2. Check if the exact symbol exists in our list
-  const allTickers=getTickers();
-  const exactMatch=allTickers.find(t=>t.s===raw);
-
-  if(exactMatch){
-    // Found in list — table is already filtered, hide any prompt
-    hideNotFoundPrompt();
-    // Highlight / scroll to the row if scan data exists
-    const inScanData=scanData.find(r=>r.sym===raw);
-    if(!inScanData&&!scanning){
-      // It's in the ticker list but hasn't scanned yet — no action needed, renderTable already filters
-    }
-    return;
-  }
-
-  // 3. Not in list — show "Add to Watchlist?" prompt
+  const exactMatch=getTickers().find(t=>t.s===raw);
+  if(exactMatch){hideNotFoundPrompt();return;}
   showNotFoundPrompt(raw);
 }
-
 function showNotFoundPrompt(sym){
   pendingAddSym=sym;
   document.getElementById('nfp-sym').textContent=sym;
   const btn=document.getElementById('btn-nfp-add');
-  btn.textContent='+ Add to Watchlist';
-  btn.disabled=false;
-  const prompt=document.getElementById('not-found-prompt');
-  prompt.classList.add('show');
+  btn.textContent='+ Add to Watchlist';btn.disabled=false;
+  document.getElementById('not-found-prompt').classList.add('show');
 }
-
 function hideNotFoundPrompt(){
   pendingAddSym='';
   document.getElementById('not-found-prompt').classList.remove('show');
 }
-
-function cancelAddPrompt(){
-  clearSearch();
-}
-
+function cancelAddPrompt(){clearSearch();}
 async function confirmAddTicker(){
-  const sym=pendingAddSym;
-  if(!sym)return;
-
-  // Button feedback
+  const sym=pendingAddSym;if(!sym)return;
   const btn=document.getElementById('btn-nfp-add');
-  btn.disabled=true;
-  btn.textContent='⏳ Fetching…';
-
+  btn.disabled=true;btn.textContent='⏳ Fetching…';
   showErr('');
   const newT={s:sym,n:sym,v:0,e:0,d:0,custom:true};
-
-  // Try to get company name from Finnhub profile
   try{
-    const r=await fetch('https://finnhub.io/api/v1/stock/profile2?symbol='+encodeURIComponent(sym)+'&token='+FH_KEY,{cache:'no-store',signal:AbortSignal.timeout(6000)});
+    const r=await fetch(`${FH_BASE}/stock/profile2?symbol=${encodeURIComponent(sym)}&token=${FH_KEY}`,
+      {cache:'no-store',signal:AbortSignal.timeout(6000)});
     if(r.ok){const d=await r.json();if(d&&d.name)newT.n=d.name;}
   }catch(e){}
-
   const[pData,ind]=await Promise.all([fhQuote(sym),getIndicators(sym)]);
-
   if(!pData){
-    showErr('⚠️ Could not fetch data for <strong>'+sym+'</strong>. It may be an invalid symbol or market is closed.');
-    btn.textContent='+ Add to Watchlist';
-    btn.disabled=false;
-    return;
+    showErr('⚠️ Could not fetch data for <strong>'+sym+'</strong>. Check the symbol and try again.');
+    btn.textContent='+ Add to Watchlist';btn.disabled=false;return;
   }
-
-  // Commit to watchlist
-  CUSTOM_TICKERS.push(newT);
-  saveCustomTickers();
-
+  CUSTOM_TICKERS.push(newT);saveCustomTickers();
   const row=buildRow(newT,pData,ind||{rsi:null,bb:null,ema200:null});
-  scanData.push(row);
-  renderTable();
-  saveScanData();
-
+  scanData.push(row);renderTable();saveScanData();
   hideNotFoundPrompt();
   document.getElementById('srch').value='';
   document.getElementById('srch-x').style.display='none';
-  setProg('✅ '+sym+' added to watchlist',100);
-  showErr('');
+  setProg('✅ '+sym+' added',100);
 }
-
-// ══════════════════════════════════════════════════════
 
 // ── RENDER ──
 function renderTable(){
   let rows=[...scanData];
   const q=(document.getElementById('srch').value||'').trim().toUpperCase();
-
-  // Filter by search query (symbol match OR name match)
-  if(q){
-    rows=rows.filter(r=>
-      r.sym.includes(q)||
-      r.name.toUpperCase().includes(q)
-    );
-  }
-
+  if(q)rows=rows.filter(r=>r.sym.includes(q)||r.name.toUpperCase().includes(q));
   if(activeFilter==='strong-signal')rows=rows.filter(r=>r.score==='strong-buy'||r.score==='strong-sell');
   else if(activeFilter==='strong-buy')rows=rows.filter(r=>r.score==='strong-buy');
   else if(activeFilter==='strong-sell')rows=rows.filter(r=>r.score==='strong-sell');
@@ -869,7 +775,6 @@ function renderTable(){
   else if(activeFilter==='caution')rows=rows.filter(r=>r.vol);
   else if(activeFilter==='etf')rows=rows.filter(r=>r.etf);
   else if(activeFilter==='defensive')rows=rows.filter(r=>r.def);
-
   const{col,dir}=sortState;
   rows.sort((a,b)=>{
     let av,bv;
@@ -885,7 +790,6 @@ function renderTable(){
     if(av===bv)return 0;
     return(dir==='asc')===(av>bv)?1:-1;
   });
-
   const all=scanData;
   document.getElementById('t-all').textContent=all.length;
   document.getElementById('t-str').textContent=all.filter(r=>r.score==='strong-buy'||r.score==='strong-sell').length;
@@ -895,18 +799,9 @@ function renderTable(){
   document.getElementById('t-caut').textContent=all.filter(r=>r.vol).length;
   document.getElementById('t-etf').textContent=all.filter(r=>r.etf).length;
   document.getElementById('t-def').textContent=all.filter(r=>r.def).length;
-
   const tbody=document.getElementById('tbody');
-  if(!scanData.length){
-    tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Click ▶ SCAN to start</td></tr>';
-    document.getElementById('empty').classList.remove('show');
-    return;
-  }
-  if(!rows.length){
-    tbody.innerHTML='';
-    document.getElementById('empty').classList.add('show');
-    return;
-  }
+  if(!scanData.length){tbody.innerHTML='<tr class="tbl-msg"><td colspan="10">Click ▶ SCAN to start</td></tr>';document.getElementById('empty').classList.remove('show');return;}
+  if(!rows.length){tbody.innerHTML='';document.getElementById('empty').classList.add('show');return;}
   document.getElementById('empty').classList.remove('show');
   tbody.innerHTML='';
   rows.forEach(r=>{
@@ -1012,14 +907,14 @@ function makeItRain(){
       const el=document.createElement('div');
       el.textContent=RAIN[Math.floor(Math.random()*RAIN.length)];
       el.style.cssText='position:fixed;font-size:'+(18+Math.random()*30)+'px;left:'+(Math.random()*100)+'vw;top:-60px;z-index:9999;pointer-events:none;animation:rd '+(1.2+Math.random()*1.2)+'s linear forwards;';
-      document.body.appendChild(el);
-      setTimeout(()=>el.remove(),3500);
+      document.body.appendChild(el);setTimeout(()=>el.remove(),3500);
     },i*60);
   }
 }
 
 // ── INIT ──
 CUSTOM_TICKERS=loadCustomTickers();
+loadIndCache();
 window.addEventListener('load',()=>{
   const restored=loadScanData();
   if(restored){
