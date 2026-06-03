@@ -452,51 +452,51 @@ async function fhQuote(sym){
 async function fetchYahooCloses(sym){
   const encoded=encodeURIComponent(sym);
   const now=Math.floor(Date.now()/1000);
-  const from=now-430*86400; // ~14 months
+  const from=now-430*86400;
 
-  // Strategy 1: v8 JSON via allorigins (different path than before — more reliable)
-  const v8url=`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
-  const proxies=[
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(v8url)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(v8url.replace('query1','query2'))}`,
-    `https://thingproxy.freeboard.io/fetch/${v8url}`,
+  // All proxy attempts — tried in order, first success wins
+  // NO direct Yahoo calls — they always CORS-block from GitHub Pages
+  const v8q1=`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
+  const v8q2=`https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
+  const csvq1=`https://query1.finance.yahoo.com/v7/finance/download/${encoded}?period1=${from}&period2=${now}&interval=1d&events=history`;
+
+  const attempts=[
+    // corsproxy.io — most reliable currently
+    {url:`https://corsproxy.io/?${encodeURIComponent(v8q1)}`,type:'json'},
+    {url:`https://corsproxy.io/?${encodeURIComponent(v8q2)}`,type:'json'},
+    // corsproxy.io with CSV endpoint — different Yahoo path
+    {url:`https://corsproxy.io/?${encodeURIComponent(csvq1)}`,type:'csv'},
+    // allorigins with get wrapper (returns {contents:'...'})
+    {url:`https://api.allorigins.win/get?url=${encodeURIComponent(v8q1)}`,type:'allorigins'},
+    {url:`https://api.allorigins.win/get?url=${encodeURIComponent(v8q2)}`,type:'allorigins'},
   ];
-  for(const p of proxies){
+
+  for(const a of attempts){
     try{
-      const r=await fetch(p,{signal:AbortSignal.timeout(9000)});
+      const r=await fetch(a.url,{signal:AbortSignal.timeout(10000)});
       if(!r.ok)continue;
-      const d=await r.json();
-      const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
+
+      if(a.type==='json'){
+        const d=await r.json();
+        const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
+
+      }else if(a.type==='csv'){
+        const txt=await r.text();
+        if(!txt||txt.includes('<html'))continue;
+        const lines=txt.trim().split('\n').slice(1);
+        const closes=lines.map(l=>{const p=l.split(',');return parseFloat(p[4]);}).filter(x=>!isNaN(x));
+        if(closes.length>=25)return closes;
+
+      }else if(a.type==='allorigins'){
+        const wrapper=await r.json();
+        if(!wrapper.contents)continue;
+        const d=JSON.parse(wrapper.contents);
+        const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
+      }
     }catch(e){}
   }
-
-  // Strategy 2: v7 CSV download via allorigins — completely different Yahoo endpoint
-  try{
-    const csvUrl=`https://query1.finance.yahoo.com/v7/finance/download/${encoded}?period1=${from}&period2=${now}&interval=1d&events=history`;
-    const proxyUrl=`https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`;
-    const r=await fetch(proxyUrl,{signal:AbortSignal.timeout(9000)});
-    if(r.ok){
-      const txt=await r.text();
-      const lines=txt.trim().split('\n').slice(1); // skip header
-      const closes=lines.map(l=>{const p=l.split(',');return parseFloat(p[4]);}).filter(x=>!isNaN(x));
-      if(closes.length>=25)return closes;
-    }
-  }catch(e){}
-
-  // Strategy 3: direct fetch with spoofed headers (works on some networks/browsers)
-  try{
-    const r=await fetch(v8url,{
-      signal:AbortSignal.timeout(6000),
-      headers:{'Accept':'application/json','User-Agent':'Mozilla/5.0'}
-    });
-    if(r.ok){
-      const d=await r.json();
-      const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
-    }
-  }catch(e){}
-
   return null;
 }
 
