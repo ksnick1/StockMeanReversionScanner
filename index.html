@@ -450,25 +450,53 @@ async function fhQuote(sym){
 
 // Yahoo Finance direct fetch — works from a real origin (GitHub Pages)
 async function fetchYahooCloses(sym){
-  // Try v8 chart API — two hosts, no proxy
-  const hosts=['query1','query2'];
-  for(const h of hosts){
+  const encoded=encodeURIComponent(sym);
+  const now=Math.floor(Date.now()/1000);
+  const from=now-430*86400; // ~14 months
+
+  // Strategy 1: v8 JSON via allorigins (different path than before — more reliable)
+  const v8url=`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
+  const proxies=[
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(v8url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(v8url.replace('query1','query2'))}`,
+    `https://thingproxy.freeboard.io/fetch/${v8url}`,
+  ];
+  for(const p of proxies){
     try{
-      const url=`https://${h}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=14mo`;
-      const r=await fetch(url,{
-        signal:AbortSignal.timeout(8000),
-        headers:{
-          'Accept':'application/json',
-          'Origin':'https://finance.yahoo.com',
-          'Referer':'https://finance.yahoo.com/',
-        }
-      });
+      const r=await fetch(p,{signal:AbortSignal.timeout(9000)});
       if(!r.ok)continue;
       const d=await r.json();
       const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
       if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
     }catch(e){}
   }
+
+  // Strategy 2: v7 CSV download via allorigins — completely different Yahoo endpoint
+  try{
+    const csvUrl=`https://query1.finance.yahoo.com/v7/finance/download/${encoded}?period1=${from}&period2=${now}&interval=1d&events=history`;
+    const proxyUrl=`https://api.allorigins.win/raw?url=${encodeURIComponent(csvUrl)}`;
+    const r=await fetch(proxyUrl,{signal:AbortSignal.timeout(9000)});
+    if(r.ok){
+      const txt=await r.text();
+      const lines=txt.trim().split('\n').slice(1); // skip header
+      const closes=lines.map(l=>{const p=l.split(',');return parseFloat(p[4]);}).filter(x=>!isNaN(x));
+      if(closes.length>=25)return closes;
+    }
+  }catch(e){}
+
+  // Strategy 3: direct fetch with spoofed headers (works on some networks/browsers)
+  try{
+    const r=await fetch(v8url,{
+      signal:AbortSignal.timeout(6000),
+      headers:{'Accept':'application/json','User-Agent':'Mozilla/5.0'}
+    });
+    if(r.ok){
+      const d=await r.json();
+      const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+      if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
+    }
+  }catch(e){}
+
   return null;
 }
 
