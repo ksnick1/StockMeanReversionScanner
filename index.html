@@ -459,26 +459,20 @@ async function fhQuote(sym){
 
 // Yahoo Finance direct fetch — works from a real origin (GitHub Pages)
 async function fetchYahooCloses(sym){
-  const encoded=encodeURIComponent(sym);
-  const v8q1=`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
-  const v8q2=`https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
-  const proxies=[
-    u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
-    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    u=>`https://corsproxy.org/?${encodeURIComponent(u)}`
-  ];
-  for(const mkProxy of proxies){
-    for(const base of [v8q1,v8q2]){
-      try{
-        const r=await fetch(mkProxy(base),{signal:AbortSignal.timeout(10000)});
-        if(!r.ok)continue;
-        const d=await r.json();
-        const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-        if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
-      }catch(e){}
-    }
-  }
-  return null;
+  // Finnhub daily candles — no CORS issues, works directly from browser
+  try{
+    const to=Math.floor(Date.now()/1000);
+    const from=to-(400*24*60*60);
+    const fhSym=sym==='BRK-B'?'BRK.B':sym;
+    const r=await fetch(
+      `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(fhSym)}&resolution=D&from=${from}&to=${to}&token=${FH_KEY}`,
+      {signal:AbortSignal.timeout(10000)}
+    );
+    if(!r.ok)return null;
+    const d=await r.json();
+    if(!d||d.s==='no_data'||!d.c||d.c.length<25)return null;
+    return d.c.filter(x=>x!=null&&!isNaN(x));
+  }catch(e){return null;}
 }
 
 function calcEMA(c,p){
@@ -582,7 +576,7 @@ async function runScan(){
   renderTable();
 
   // Fetch fresh indicators in batches
-  const IBATCH=10;
+  const IBATCH=8;
   let indDone=0;
   for(let i=0;i<toFetch.length;i+=IBATCH){
     const batch=toFetch.slice(i,i+IBATCH);
@@ -597,7 +591,7 @@ async function runScan(){
       indDone++;
       setProg(`Indicators: ${indDone}/${toFetch.length}…`,42+Math.round(indDone/Math.max(toFetch.length,1)*55));
     }));
-    if(i+IBATCH<toFetch.length)await sleep(300);
+    if(i+IBATCH<toFetch.length)await sleep(1100);
   }
 
   scanning=false;btn.disabled=false;btn.textContent='▶ SCAN';
