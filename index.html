@@ -549,32 +549,34 @@ async function runScan(){
   // Cached indicators skip the candle call entirely (instant)
   const priceMap={};
   try{
+    // ── Phase 1: All prices sequentially, 1100ms apart ──
     for(let i=0;i<TICKERS.length;i++){
       const t=TICKERS[i];
-      setProg(`Scanning ${i+1}/${total}: ${t.s}…`, 3+Math.round((i/total)*94));
-
-      // Price — sleep 1100ms after each call (54 calls/min, under 60 limit)
+      setProg(`Prices ${i+1}/${total}: ${t.s}…`,3+Math.round((i/total)*45));
       const p=await fhQuote(t.s);
       if(p)priceMap[t.s]=p;
-      await sleep(1100);
-
-      // Indicators — use cache if fresh, otherwise fetch candle + sleep
-      let ind=getCached(t.s);
-      if(!ind){
-        ind=await getIndicators(t.s);
-        await sleep(1100); // sleep after candle call too
-      }
-
-      // Build and show row immediately — always add row, price may be null
-      {
-        const pData=priceMap[t.s]||{price:null,chg:null};
-        const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
-        const ei=scanData.findIndex(r=>r.sym===t.s);
-        if(ei>=0)scanData[ei]=row;else scanData.push(row);
-        renderTable();
-        saveScanData();
+      const pData=priceMap[t.s]||{price:null,chg:null};
+      const ind0=getCached(t.s)||{rsi:null,bb:null,ema200:null};
+      const row0=buildRow(t,pData,ind0);
+      const ei0=scanData.findIndex(r=>r.sym===t.s);
+      if(ei0>=0)scanData[ei0]=row0;else scanData.push(row0);
+      renderTable();saveScanData();
+      if(i<TICKERS.length-1)await sleep(1100);
     }
-  }catch(err){showErr('Scan error: '+err.message);}
+    // ── Phase 2: Indicators for uncached tickers, 1100ms apart ──
+    const toFetch=TICKERS.filter(t=>!getCached(t.s));
+    for(let i=0;i<toFetch.length;i++){
+      const t=toFetch[i];
+      setProg(`Indicators ${i+1}/${toFetch.length}: ${t.s}…`,50+Math.round((i/Math.max(toFetch.length,1))*47));
+      const ind=await getIndicators(t.s);
+      const pData2=priceMap[t.s]||{price:null,chg:null};
+      const row=buildRow(t,pData2,ind||{rsi:null,bb:null,ema200:null});
+      const ei=scanData.findIndex(r=>r.sym===t.s);
+      if(ei>=0)scanData[ei]=row;else scanData.push(row);
+      renderTable();saveScanData();
+      if(i<toFetch.length-1)await sleep(1100);
+    }
+  }catch(err){showErr('Scan error{showErr('Scan error: '+err.message);}
 
   scanning=false;btn.disabled=false;btn.textContent='▶ SCAN';
   setProg('✅ '+scanData.length+'/'+total+' loaded',100);
@@ -582,7 +584,7 @@ async function runScan(){
   document.getElementById('last-scan').textContent=now;
   document.getElementById('live-b').classList.add('show');
   document.getElementById('sb-price').textContent=now;
-  document.getElementById('sb-ind').textContent=now+' (Yahoo Finance daily)';
+  document.getElementById('sb-ind').textContent=now+' (Finnhub daily candles)';
   const ns=newSignals.size;
   document.getElementById('sb-signals').textContent=ns>0?'🔔 '+ns+' new signal'+(ns>1?'s':''):'No new signals';
   renderTable();saveScanData();startAutoRefresh();
