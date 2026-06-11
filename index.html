@@ -282,7 +282,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 </main>
 
 <script>
-const FH_KEY='d8f20bpr01qub7kfh47gd8f20bpr01qub7kfh480';
+const FH_KEY='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
 const STORE_SCANDATA='osl_scandata_v1';
 const STORE_SCANMETA='osl_scanmeta_v1';
 const STORE_CUSTOM='osl_custom_v1';
@@ -565,7 +565,7 @@ async function runScan(){
       }
 
       // Gap: 1100ms when fetching candles (2 calls), 550ms when cached (1 call)
-      const gapMs=getCached(t.s)?550:1100;
+      const gapMs=getCached(t.s)?600:1200;
       if(i<TICKERS.length-1)await sleep(gapMs);
     }
   }catch(err){showErr('Scan error: '+err.message);}
