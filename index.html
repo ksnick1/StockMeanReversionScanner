@@ -549,7 +549,7 @@ async function runScan(){
   // Cached indicators skip the candle call entirely (instant)
   const priceMap={};
   try{
-    // ── Phase 1: All prices sequentially, 1100ms apart ──
+    // ── Phase 1: Prices — sequential, 1100ms apart, shows tickers as they load ──
     for(let i=0;i<TICKERS.length;i++){
       const t=TICKERS[i];
       setProg(`Prices ${i+1}/${total}: ${t.s}…`,3+Math.round((i/total)*45));
@@ -563,7 +563,7 @@ async function runScan(){
       renderTable();saveScanData();
       if(i<TICKERS.length-1)await sleep(1100);
     }
-    // ── Phase 2: Indicators for uncached tickers, 1100ms apart ──
+    // ── Phase 2: Indicators — only uncached tickers, 1100ms apart ──
     const toFetch=TICKERS.filter(t=>!getCached(t.s));
     for(let i=0;i<toFetch.length;i++){
       const t=toFetch[i];
@@ -576,7 +576,7 @@ async function runScan(){
       renderTable();saveScanData();
       if(i<toFetch.length-1)await sleep(1100);
     }
-  }catch(err){showErr('Scan error{showErr('Scan error: '+err.message);}
+  }catch(err){showErr('Scan error: '+err.message);}{showErr('Scan error: '+err.message);}
 
   scanning=false;btn.disabled=false;btn.textContent='▶ SCAN';
   setProg('✅ '+scanData.length+'/'+total+' loaded',100);
