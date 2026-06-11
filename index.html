@@ -408,6 +408,7 @@ function fmtCd(s){return s>60?Math.floor(s/60)+'m '+s%60+'s':s+'s';}
 
 // ── SCORE ──
 function scoreRow(rsi,bb,ema200,price){
+  if(price==null)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
   if(rsi==null&&!bb)return{score:'neutral',label:'Neutral',play:'Wait',cls:'sc-nu',ord:2};
   const lo=bb&&price<=bb.lower*1.015,hi=bb&&price>=bb.upper*0.985,ab=ema200!=null?price>ema200:null;
   if(rsi!=null&&rsi<30&&lo)return{score:'strong-buy',label:'⚡ Strong Buy',play:'Buy Calls',cls:'sc-sb',ord:0};
@@ -505,7 +506,9 @@ async function getIndicators(sym){
 }
 
 function buildRow(t,pData,ind){
-  const{price,chg}=pData,{rsi=null,bb=null,ema200=null}=ind||{};
+  const price=pData&&pData.price!=null?pData.price:null;
+  const chg=pData&&pData.chg!=null?pData.chg:0;
+  const{rsi=null,bb=null,ema200=null}=ind||{};
   const sc=scoreRow(rsi,bb,ema200,price);
   const hr=processHR(t.s,price,sc.score);
   const prev=prevScores[t.s];
@@ -562,14 +565,14 @@ async function runScan(){
         await sleep(1100); // sleep after candle call too
       }
 
-      // Build and show row immediately
-      if(priceMap[t.s]){
-        const row=buildRow(t,priceMap[t.s],ind||{rsi:null,bb:null,ema200:null});
+      // Build and show row immediately — always add row, price may be null
+      {
+        const pData=priceMap[t.s]||{price:null,chg:null};
+        const row=buildRow(t,pData,ind||{rsi:null,bb:null,ema200:null});
         const ei=scanData.findIndex(r=>r.sym===t.s);
         if(ei>=0)scanData[ei]=row;else scanData.push(row);
         renderTable();
         saveScanData();
-      }
     }
   }catch(err){showErr('Scan error: '+err.message);}
 
@@ -698,7 +701,8 @@ function renderTable(){
   document.getElementById('empty').classList.remove('show');
   tbody.innerHTML='';
   rows.forEach(r=>{
-    const cs=(r.chg>=0?'+':'')+r.chg.toFixed(2)+'%',cc=r.chg>0.01?'chg-p':r.chg<-0.01?'chg-n':'chg-z';
+    const chgVal=r.chg!=null?r.chg:0;
+    const cs=(chgVal>=0?'+':'')+chgVal.toFixed(2)+'%',cc=chgVal>0.01?'chg-p':chgVal<-0.01?'chg-n':'chg-z';
     const ib=r.indStatus==='fresh'?'<span class="eod-badge eod-live">✅ Fresh</span>':
              r.indStatus==='cached'?'<span class="eod-badge eod-pend">💾 Cached</span>':
              '<span class="eod-badge eod-none">—</span>';
@@ -722,7 +726,7 @@ function renderTable(){
     if(r.isNewSignal)tr.className='new-signal';
     tr.innerHTML=
       '<td class="sym-s"><strong>'+r.sym+'</strong>'+(r.vol?' <span style="color:var(--yellow)">⚠️</span>':'')+bell+'<div class="sym-nm">'+r.name+'</div><button class="del-btn" onclick="deleteTicker(\''+r.sym+'\')" title="Remove">✕</button></td>'+
-      '<td class="pr">$'+r.price.toFixed(2)+pt+'</td>'+
+      '<td class="pr">'+(r.price!=null?'$'+r.price.toFixed(2):'—')+pt+'</td>'+
       '<td class="'+cc+'">'+cs+'</td>'+
       '<td>'+rH+'</td><td>'+bH+'</td><td>'+mH+'</td>'+
       '<td><span class="sc-b '+r.scoreCls+'">'+r.scoreLabel+'</span></td>'+
