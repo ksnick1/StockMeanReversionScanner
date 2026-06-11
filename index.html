@@ -142,6 +142,8 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.del-btn{background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:1px 4px;margin-left:4px;border-radius:3px;opacity:0.5;vertical-align:middle;}
+.del-btn:hover{color:var(--red);opacity:1;background:rgba(255,23,68,0.1);}
 </style>
 </head>
 <body>
@@ -282,7 +284,7 @@ tr:last-child td{border-bottom:none;}tr:hover td{background:#13161f;}
 </main>
 
 <script>
-const FH_KEY='d7ubki9r01qnv95n0argd7ubki9r01qnv95n0as0';
+const FH_KEY='d8f20bpr01qub7kfh47gd8f20bpr01qub7kfh480';
 const STORE_SCANDATA='osl_scandata_v1';
 const STORE_SCANMETA='osl_scanmeta_v1';
 const STORE_CUSTOM='osl_custom_v1';
@@ -719,7 +721,7 @@ function renderTable(){
     const tr=document.createElement('tr');
     if(r.isNewSignal)tr.className='new-signal';
     tr.innerHTML=
-      '<td class="sym-s"><strong>'+r.sym+'</strong>'+(r.vol?' <span style="color:var(--yellow)">⚠️</span>':'')+bell+'<div class="sym-nm">'+r.name+'</div></td>'+
+      '<td class="sym-s"><strong>'+r.sym+'</strong>'+(r.vol?' <span style="color:var(--yellow)">⚠️</span>':'')+bell+'<div class="sym-nm">'+r.name+'</div><button class="del-btn" onclick="deleteTicker(\''+r.sym+'\')" title="Remove">✕</button></td>'+
       '<td class="pr">$'+r.price.toFixed(2)+pt+'</td>'+
       '<td class="'+cc+'">'+cs+'</td>'+
       '<td>'+rH+'</td><td>'+bH+'</td><td>'+mH+'</td>'+
@@ -732,6 +734,13 @@ function renderTable(){
 
 // ── MANAGE ──
 function removeTicker(sym){CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustom();scanData=scanData.filter(r=>r.sym!==sym);saveScanData();renderManage();renderTable();}
+function deleteTicker(sym){
+  // Remove from view; if custom ticker, remove permanently
+  const isCustom=CUSTOM_TICKERS.find(t=>t.s===sym);
+  if(isCustom){CUSTOM_TICKERS=CUSTOM_TICKERS.filter(t=>t.s!==sym);saveCustom();}
+  scanData=scanData.filter(r=>r.sym!==sym);
+  saveScanData();renderManage();renderTable();
+}
 function openManageModal(){renderManage();document.getElementById('manage-modal').classList.add('show');}
 function closeManageModal(){document.getElementById('manage-modal').classList.remove('show');}
 function renderManage(){
