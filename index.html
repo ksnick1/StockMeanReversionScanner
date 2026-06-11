@@ -460,19 +460,23 @@ async function fhQuote(sym){
 // Yahoo Finance direct fetch — works from a real origin (GitHub Pages)
 async function fetchYahooCloses(sym){
   const encoded=encodeURIComponent(sym);
-  // YOUR Cloudflare Worker proxy — reliable, no rate limits, always CORS-open
-  const PROXY='https://stock-proxy.ksnick1.workers.dev';
   const v8q1=`https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
   const v8q2=`https://query2.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=14mo`;
-  const urls=[v8q1,v8q2];
-  for(const u of urls){
-    try{
-      const r=await fetch(`${PROXY}?url=${encodeURIComponent(u)}`,{signal:AbortSignal.timeout(10000)});
-      if(!r.ok)continue;
-      const d=await r.json();
-      const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
-      if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
-    }catch(e){}
+  const proxies=[
+    u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u=>`https://corsproxy.org/?${encodeURIComponent(u)}`
+  ];
+  for(const mkProxy of proxies){
+    for(const base of [v8q1,v8q2]){
+      try{
+        const r=await fetch(mkProxy(base),{signal:AbortSignal.timeout(10000)});
+        if(!r.ok)continue;
+        const d=await r.json();
+        const c=d?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        if(c&&c.length>=25)return c.filter(x=>x!=null&&!isNaN(x));
+      }catch(e){}
+    }
   }
   return null;
 }
