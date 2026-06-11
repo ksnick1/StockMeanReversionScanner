@@ -576,7 +576,7 @@ async function runScan(){
       renderTable();saveScanData();
       if(i<toFetch.length-1)await sleep(1100);
     }
-  }catch(err){showErr('Scan error: '+err.message);}{showErr('Scan error: '+err.message);}
+  }catch(err){showErr('Scan error: '+err.message);}
 
   scanning=false;btn.disabled=false;btn.textContent='▶ SCAN';
   setProg('✅ '+scanData.length+'/'+total+' loaded',100);
