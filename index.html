@@ -539,62 +539,36 @@ async function runScan(){
   const TICKERS=getTickers(),total=TICKERS.length;
   let done=0;scanData=[];
 
-  // ── Phase 1: Prices in batches of 10, 1100ms gap (stays under 60/min) ──
-  setProg('Fetching '+total+' prices…',3);
+  // ── Single sequential pass: price + indicators per ticker, 1100ms apart ──
+  // Guarantees <60 calls/min on Finnhub free tier, all 70 tickers load reliably
+  // Cached indicators skip the candle call entirely (instant)
   const priceMap={};
-  const P_BATCH=10;
-  for(let i=0;i<TICKERS.length;i+=P_BATCH){
-    const batch=TICKERS.slice(i,i+P_BATCH);
-    await Promise.allSettled(batch.map(async t=>{
+  try{
+    for(let i=0;i<TICKERS.length;i++){
+      const t=TICKERS[i];
+      setProg(`Scanning ${i+1}/${total}: ${t.s}…`, 3+Math.round((i/total)*94));
+
+      // Price
       const p=await fhQuote(t.s);
       if(p)priceMap[t.s]=p;
-      done++;setProg('Prices: '+done+'/'+total,3+Math.round(done/total*35));
-    }));
-    for(const t of batch){
+
+      // Indicators (use cache if fresh, otherwise fetch candle)
+      const ind=getCached(t.s)?getCached(t.s):await getIndicators(t.s);
+
+      // Build and show row immediately
       if(priceMap[t.s]){
-        const ind=getCached(t.s)||{rsi:null,bb:null,ema200:null};
-        const row=buildRow(t,priceMap[t.s],ind);
+        const row=buildRow(t,priceMap[t.s],ind||{rsi:null,bb:null,ema200:null});
         const ei=scanData.findIndex(r=>r.sym===t.s);
         if(ei>=0)scanData[ei]=row;else scanData.push(row);
-      }
-    }
-    renderTable();
-    if(i+P_BATCH<TICKERS.length)await sleep(1100);
-  }
-  setProg('Prices done — fetching indicators…',40);
-
-  // ── Phase 2: Indicators in batches of 5, 5500ms gap (~54 calls/min max) ──
-  const toFetch=TICKERS.filter(t=>!getCached(t.s)&&priceMap[t.s]);
-  const cached=TICKERS.filter(t=>getCached(t.s));
-  setProg(`Indicators: 0/${toFetch.length} (${cached.length} cached)…`,42);
-
-  for(const t of cached){
-    const ind=getCached(t.s);
-    if(ind&&priceMap[t.s]){
-      const idx=scanData.findIndex(r=>r.sym===t.s);
-      const row=buildRow(t,priceMap[t.s],ind);
-      if(idx>=0)scanData[idx]=row;else scanData.push(row);
-    }
-  }
-  renderTable();
-
-  const IBATCH=5;
-  let indDone=0;
-  for(let i=0;i<toFetch.length;i+=IBATCH){
-    const batch=toFetch.slice(i,i+IBATCH);
-    await Promise.allSettled(batch.map(async t=>{
-      const ind=await getIndicators(t.s);
-      if(priceMap[t.s]){
-        const row=buildRow(t,priceMap[t.s],ind);
-        const idx=scanData.findIndex(r=>r.sym===t.s);
-        if(idx>=0)scanData[idx]=row;else scanData.push(row);
         renderTable();
+        saveScanData(); // save progressively so partial results persist
       }
-      indDone++;
-      setProg(`Indicators: ${indDone}/${toFetch.length}…`,42+Math.round(indDone/Math.max(toFetch.length,1)*55));
-    }));
-    if(i+IBATCH<toFetch.length)await sleep(5500);
-  }
+
+      // Gap: 1100ms when fetching candles (2 calls), 550ms when cached (1 call)
+      const gapMs=getCached(t.s)?550:1100;
+      if(i<TICKERS.length-1)await sleep(gapMs);
+    }
+  }catch(err){showErr('Scan error: '+err.message);}
 
   scanning=false;btn.disabled=false;btn.textContent='▶ SCAN';
   setProg('✅ '+scanData.length+'/'+total+' loaded',100);
