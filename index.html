@@ -539,32 +539,35 @@ async function runScan(){
   const TICKERS=getTickers(),total=TICKERS.length;
   let done=0;scanData=[];
 
-  // ── Phase 1: All prices in parallel ──
+  // ── Phase 1: Prices in batches of 10, 1100ms gap (stays under 60/min) ──
   setProg('Fetching '+total+' prices…',3);
   const priceMap={};
-  await Promise.allSettled(TICKERS.map(async t=>{
-    const p=await fhQuote(t.s);
-    if(p)priceMap[t.s]=p;
-    done++;setProg('Prices: '+done+'/'+total,3+Math.round(done/total*35));
-  }));
-
-  // Render price-only rows immediately so table isn't empty
-  for(const t of TICKERS){
-    if(priceMap[t.s]){
-      const row=buildRow(t,priceMap[t.s],{rsi:null,bb:null,ema200:null});
-      scanData.push(row);
+  const P_BATCH=10;
+  for(let i=0;i<TICKERS.length;i+=P_BATCH){
+    const batch=TICKERS.slice(i,i+P_BATCH);
+    await Promise.allSettled(batch.map(async t=>{
+      const p=await fhQuote(t.s);
+      if(p)priceMap[t.s]=p;
+      done++;setProg('Prices: '+done+'/'+total,3+Math.round(done/total*35));
+    }));
+    for(const t of batch){
+      if(priceMap[t.s]){
+        const ind=getCached(t.s)||{rsi:null,bb:null,ema200:null};
+        const row=buildRow(t,priceMap[t.s],ind);
+        const ei=scanData.findIndex(r=>r.sym===t.s);
+        if(ei>=0)scanData[ei]=row;else scanData.push(row);
+      }
     }
+    renderTable();
+    if(i+P_BATCH<TICKERS.length)await sleep(1100);
   }
-  renderTable();
   setProg('Prices done — fetching indicators…',40);
 
-  // ── Phase 2: Indicators in batches of 10 ──
-  // Only fetch if not already cached — cached tickers skip instantly
+  // ── Phase 2: Indicators in batches of 5, 5500ms gap (~54 calls/min max) ──
   const toFetch=TICKERS.filter(t=>!getCached(t.s)&&priceMap[t.s]);
   const cached=TICKERS.filter(t=>getCached(t.s));
   setProg(`Indicators: 0/${toFetch.length} (${cached.length} cached)…`,42);
 
-  // Apply cached indicators to rows immediately
   for(const t of cached){
     const ind=getCached(t.s);
     if(ind&&priceMap[t.s]){
@@ -575,8 +578,7 @@ async function runScan(){
   }
   renderTable();
 
-  // Fetch fresh indicators in batches
-  const IBATCH=8;
+  const IBATCH=5;
   let indDone=0;
   for(let i=0;i<toFetch.length;i+=IBATCH){
     const batch=toFetch.slice(i,i+IBATCH);
@@ -591,7 +593,7 @@ async function runScan(){
       indDone++;
       setProg(`Indicators: ${indDone}/${toFetch.length}…`,42+Math.round(indDone/Math.max(toFetch.length,1)*55));
     }));
-    if(i+IBATCH<toFetch.length)await sleep(1100);
+    if(i+IBATCH<toFetch.length)await sleep(5500);
   }
 
   scanning=false;btn.disabled=false;btn.textContent='▶ SCAN';
