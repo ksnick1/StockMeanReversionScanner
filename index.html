@@ -595,19 +595,25 @@ function startAutoRefresh(){
   indTimer=setInterval(async()=>{indCd=3600;if(!scanning)await runScan();},3600000);
 }
 async function refreshPrices(){
-  await Promise.allSettled(scanData.map(async row=>{
-    const p=await fhQuote(row.sym);if(!p)return;
-    row.price=p.price;row.chg=p.chg;
-    const sc=scoreRow(row.rsi,row.bb,row.ema200,row.price);
-    row.score=sc.score;row.scoreLabel=sc.label;row.scoreCls=sc.cls;row.play=sc.play;row.scoreOrd=sc.ord;
-    if(row.bb){
-      row.bbPct=((row.price-row.bb.middle)/row.bb.middle)*100;
-      if(row.price<=row.bb.lower){row.bbLbl='Lower Band';row.bbCls='bb-lo';}
-      else if(row.price>=row.bb.upper){row.bbLbl='Upper Band';row.bbCls='bb-up';}
-      else{row.bbLbl='Mid Band';row.bbCls='bb-mi';}
+  // Stagger price refreshes — 550ms apart stays under 60/min Finnhub limit
+  for(let i=0;i<scanData.length;i++){
+    const row=scanData[i];
+    const p=await fhQuote(row.sym);
+    if(p){
+      row.price=p.price;row.chg=p.chg;
+      const sc=scoreRow(row.rsi,row.bb,row.ema200,row.price);
+      row.score=sc.score;row.scoreLabel=sc.label;row.scoreCls=sc.cls;row.play=sc.play;row.scoreOrd=sc.ord;
+      if(row.bb){
+        row.bbPct=((row.price-row.bb.middle)/row.bb.middle)*100;
+        if(row.price<=row.bb.lower){row.bbLbl='Lower Band';row.bbCls='bb-lo';}
+        else if(row.price>=row.bb.upper){row.bbLbl='Upper Band';row.bbCls='bb-up';}
+        else{row.bbLbl='Mid Band';row.bbCls='bb-mi';}
+      }
+      if(row.ema200!=null)row.emaPct=((row.price-row.ema200)/row.ema200)*100;
+      renderTable();
     }
-    if(row.ema200!=null)row.emaPct=((row.price-row.ema200)/row.ema200)*100;
-  }));
+    if(i<scanData.length-1)await sleep(550);
+  }
   document.getElementById('sb-price').textContent=fmtTime();
   saveScanData();renderTable();
 }
@@ -772,8 +778,7 @@ window.addEventListener('load',()=>{
   const ok=loadScanData();
   if(ok){
     scanData=scanData.map(r=>({...r,indStatus:'cached'}));renderTable();
-    if(isOpen())setTimeout(()=>runScan(),1500);
-    else setProg('💾 Cached data loaded — click ▶ SCAN to refresh',100);
+    setProg('💾 Cached data loaded — click ▶ SCAN to refresh',100);
   }else{runScan();}
 });
 </script>
